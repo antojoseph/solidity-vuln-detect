@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY pyproject.toml uv.lock* ./
+RUN pip install uv && uv sync --frozen --no-dev 2>/dev/null || uv sync --no-dev
+COPY . .
+
+# Most of the time this command should not change, except if you change your env path
+# or launch some other service before running the environment
+CMD ["uv", "run", "python", "-m", "hud", "dev", "env:env", "--stdio"]

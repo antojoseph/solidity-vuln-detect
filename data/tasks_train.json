@@ -1,0 +1,3734 @@
+[
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/access-control-and-privilege-escalation/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/access-control/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa-lending/irrevocable-whitelist-or-approval/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/privileged-function-abuse/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/access-control/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "gaming/irrevocable-privileged-roles/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/access-control-and-privilege-escalation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "privacy/missing-access-control/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/centralization-risks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/access-control-and-privilege-escalation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "reserve-currency/access-control-state-mismatch/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/access-control-and-privilege-escalation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/access-control-bypass/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/access-control/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/privileged-role-abuse/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "prediction-market/access-control-visibility-misconfiguration/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/access-control-and-privilege-escalation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/access-control-authorization/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/access-bypass-restrictions/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "oracle/missing-access-control/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/access-control/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/missing-access-control/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/access-control/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/access-control/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "payments/privilege-escalation-access-control/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "uncollateralized-lending/access-control-bypass/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "algo-stables/access-control-missing/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/access-control/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/access-control-and-privilege-escalation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/access-control-bypass/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/access-control-privilege-escalation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/access-control-bypass/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/access-control-bypass/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/access-control-bypass/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/admin-centralization-risks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/access-control-and-privilege-escalation/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "algo-stables/amm-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "algo-stables/epoch-share-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/governance-voting-checkpoint/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/governance-voting-manipulation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/governance-voting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/governance-voting-power-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/governance-voting/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "payments/voting-power-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "algo-stables/governance-vote-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/governance-voting-flaws/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/governance-voting-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/governance-voting/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/governance-voting/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/governance-voting-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/governance-voting/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/governance-voting/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/governance-voting-flaws/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/governance-voting-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/slippage-protection/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "oracle/frontrunning-and-slippage-protection/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/slippage-protection/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/missing-slippage-protection/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/slippage-and-mev/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/slippage-protection/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/slippage-and-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "algo-stables/missing-slippage-protection/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/slippage-and-sandwich-protection/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/slippage-and-sandwich-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/slippage-and-mev/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/missing-slippage-protection/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/slippage-and-sandwich-attacks/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/slippage-and-sandwich-attacks/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/slippage-and-sandwich-protection/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/slippage-and-mev/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/missing-slippage-protection/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/slippage-and-sandwich-attacks/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/slippage-protection-missing/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/slippage-and-sandwich-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/missing-slippage-deadline-protection/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/slippage-and-mev/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/missing-slippage-protection/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/slippage-and-mev/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/missing-slippage-protection/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/slippage-and-sandwich-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/missing-slippage-protection/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/missing-slippage-protection/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/stale-oracle-data/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/oracle-price-manipulation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/oracle-price-manipulation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/oracle-price-feed/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/oracle-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/oracle-price-manipulation/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/stale-chainlink-oracle-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/oracle-manipulation-and-stale-prices/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/oracle-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "algo-stables/oracle-stale-price/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/oracle-price-feed/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/stale-oracle-data/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/oracle-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/oracle-stale-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa-lending/stale-or-manipulable-price-data/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "oracle/oracle-price-manipulation-via-reserves/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/oracle-price-feed-misconfiguration/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/oracle-price-feed-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/oracle-price-feed-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/oracle-price-manipulation/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/oracle-price-feed-manipulation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/oracle-price-feed/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/oracle-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/oracle-and-price-feed-issues/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/oracle-price-manipulation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/oracle-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "privacy/stale-oracle-data/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "oracle/twap-oracle-miscalculation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/oracle-price-manipulation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/stale-chainlink-oracle-validation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/oracle-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/oracle-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/oracle-price-feed/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/oracle-price-feed-manipulation/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/oracle-price-feed/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/stale-chainlink-oracle-validation/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/reentrancy-via-external-calls/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "payments/reentrancy-via-external-calls/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/reentrancy-and-cei-violations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa-lending/reentrancy-via-token-callbacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/reentrancy-in-external-calls/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/reentrancy/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/reentrancy-via-external-calls/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/reentrancy/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/reentrancy/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/reentrancy/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/reentrancy/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/reentrancy/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/reentrancy/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/reentrancy/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/reentrancy/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/reentrancy-via-external-calls/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/reentrancy/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/reentrancy-vulnerabilities/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/reentrancy/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/reentrancy/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/reentrancy/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/reentrancy-via-callback-tokens/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "privacy/reentrancy-via-token-callbacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/reentrancy-vulnerabilities/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/reentrancy-vulnerabilities/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/reentrancy-in-lending-flows/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/reentrancy/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/reentrancy-via-external-calls/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/reentrancy/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/reentrancy/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/reentrancy/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/reentrancy-via-token-callbacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/reentrancy/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/reward-distribution-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "reserve-currency/state-update-ordering/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/stale-state-after-actions/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/missing-state-updates/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/missing-state-updates/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/state-inconsistency-on-withdrawal/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/incorrect-state-updates/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/state-update-ordering/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/incorrect-state-updates/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/stale-state-after-actions/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/incorrect-state-updates/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "algo-stables/stale-protocol-state/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/state-update-ordering/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/state-update-inconsistency/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/stale-cached-state-desync/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/stale-state-after-operations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/state-update-ordering/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "reserve-currency/stale-state-dependency/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/state-update-ordering-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/incorrect-state-updates/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/state-inconsistency-on-withdrawal/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/incorrect-state-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/incorrect-state-accounting/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/incorrect-state-updates/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/state-inconsistency-on-withdrawal/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/token-decimal-mismatch/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/precision-loss-rounding/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/decimal-handling-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/rounding-and-precision-loss/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/rounding-direction-and-precision-loss/4"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/rounding-precision-loss/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/token-decimal-assumptions/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/rounding-precision-loss/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/rounding-direction-and-precision-loss/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "oracle/incorrect-price-feed-decimal-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/decimal-precision-mismatch/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/rounding-errors/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/precision-loss-rounding/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/precision-loss-rounding/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "algo-stables/token-decimal-mismatch/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/incorrect-decimal-handling/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/precision-and-rounding-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/rounding-and-precision-loss/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/precision-loss-rounding/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/incorrect-decimal-handling/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/rounding-and-precision-loss/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/rounding-and-precision/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/token-decimal-mismatch/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/rounding-and-precision/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/decimal-precision-mismatch/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/rounding-direction-and-precision-loss/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa-lending/rounding-direction-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "privacy/rounding-truncation-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/rounding-precision-loss/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/rounding-and-precision/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/rounding-direction-and-precision-loss/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/precision-loss-rounding/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/rounding-direction-and-precision-loss/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/token-decimal-mismatch/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/unchecked-return-values/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/unsafe-erc20-token-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "payments/unsafe-erc20-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/unsafe-erc721-operations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/unsafe-external-calls/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/unsafe-external-calls/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/unchecked-return-values/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/unsafe-erc20-operations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/unsafe-token-approvals/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/unsafe-erc20-operations/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "payments/unsafe-nft-minting-transfer/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/unsafe-token-approvals/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/unsafe-external-calls/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/unsafe-external-calls/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/unsafe-erc20-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "payments/unsafe-eth-transfer-methods/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/unsafe-erc20-token-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/unsafe-erc20-operations/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/unsafe-token-approvals/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/unsafe-erc20-token-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/unsafe-token-approvals/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/unsafe-external-calls/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/unchecked-return-values/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/unsafe-external-calls/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "prediction-market/unsafe-erc20-token-transfers/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/unchecked-return-values/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "algo-stables/unsafe-erc20-operations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/unsafe-external-calls/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/integer-overflow-underflow/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/integer-overflow-underflow/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/integer-overflow-underflow/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/integer-overflow-unsafe-casting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/integer-overflow-underflow/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/overflow-underflow/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/arithmetic-overflow-underflow/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/integer-overflow-underflow/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/overflow-underflow-math-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/integer-overflow-underflow/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa-lending/unsafe-arithmetic-in-unchecked-blocks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/integer-overflow-underflow/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/integer-overflow-underflow/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/unsafe-type-casting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/arithmetic-and-precision-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/integer-overflow-underflow/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/signature-replay-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/cross-chain-message-replay/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/signature-and-replay-vulnerabilities/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/replay-attack-missing-nonce/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/signature-and-replay-vulnerabilities/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/signature-replay/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/signature-replay-attacks/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/replay-attack-missing-nonce/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/signature-replay-and-validation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/cross-chain-message-verification/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/signature-replay/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/signature-replay-and-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/signature-replay-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/signature-replay-and-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/cross-chain-message-verification/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/signature-and-replay-vulnerabilities/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/signature-hash-verification/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/signature-replay/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/unbounded-loops-gas-exhaustion/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/denial-of-service/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/denial-of-service/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/denial-of-service-griefing/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/griefing-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/denial-of-service/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/denial-of-service-unbounded-loops/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/griefing-attacks/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/denial-of-service/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/withdrawal-queue-dos/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/denial-of-service/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/gas-limit-and-estimation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/denial-of-service-via-unbounded-operations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/denial-of-service-gas-griefing/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/denial-of-service/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/dos-gas-griefing/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/denial-of-service-unbounded-loops/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/denial-of-service-gas-griefing/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "payments/unbounded-loop-dos/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/denial-of-service-unbounded-loops/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/denial-of-service/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/gas-griefing-eip150/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/unbounded-loops-denial-of-service/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/dos-gas-griefing/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/withdrawal-queue-dos/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/liquidation-auction-dos/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/withdrawal-queue-dos/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/denial-of-service/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/griefing-attacks/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/denial-of-service-griefing/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "uncollateralized-lending/withdrawal-queue-dos/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/withdrawal-queue-dos/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/erc4626-vault-compliance/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/erc4626-vault-compliance/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/erc4626-vault-compliance/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/erc4626-vault-integration/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/erc4626-vault-compliance/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/erc4626-vault-compliance/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/erc4626-vault/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/erc4626-vault/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/erc4626-vault/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/erc4626-vault-integration/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/erc4626-vault-compliance/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/erc4626-vault-share-issues/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/external-call-injection/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/flow-rate-and-rate-limiting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/locked-funds/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/fund-lock-griefing/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/locked-or-stuck-funds/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/locked-funds/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/fund-lock/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/eth-handling-refund-issues/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "gaming/eth-handling-and-overpayment-loss/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/fund-lock/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/locked-and-irretrievable-funds/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/locked-funds/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/fund-locking-trapped-assets/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/fund-lock-and-stuck-tokens/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/locked-stuck-funds/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/fund-lock-and-stuck-tokens/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/fund-lock/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "privacy/stuck-or-locked-funds/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/locked-funds/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/funds-permanently-locked/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/excess-msg-value-locked/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/fund-lock-and-stuck-tokens/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/funds-permanently-locked/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/funds-permanently-locked/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/excess-msg-value-not-refunded/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/fund-lock-and-stuck-tokens/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/native-eth-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/fund-lock/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/initialization-upgrade/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/initialization-and-upgradeability/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/initialization-and-upgrade-vulnerabilities/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/initialization-proxy-vulnerabilities/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/initialization-upgrade-vulnerabilities/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/initialization-upgrade-vulnerabilities/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/initialization-vulnerabilities/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/initialization-upgrade-vulnerabilities/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/initialization-and-upgradeability/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/initialization-and-upgradeability/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/initialization-upgrade/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/upgradeable-storage-gap/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/initialization-upgrade-vulnerabilities/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/missing-input-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/missing-input-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa-lending/missing-existence-validation-on-state-operations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/missing-input-validation/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/input-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/input-validation/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/missing-input-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/input-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/insufficient-input-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa-lending/missing-input-validation-in-admin-setters/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "bridge/insufficient-input-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/missing-input-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/missing-input-validation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/insufficient-input-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "payments/input-validation-missing-checks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/input-validation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/fee-on-transfer-token-incompatibility/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/non-standard-erc20/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/fee-on-transfer-token-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/non-standard-token-handling/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/fee-on-transfer-token-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/fee-on-transfer-token-incompatibility/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/fee-on-transfer-token-incompatibility/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/fee-on-transfer-token-handling/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/fee-on-transfer-token-incompatibility/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/fee-on-transfer-token-incompatibility/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/fee-on-transfer-token-incompatibility/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/fee-on-transfer-token-incompatibility/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/fee-on-transfer-token-incompatibility/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/non-standard-erc20/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/fee-on-transfer-token-handling/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/non-standard-erc20/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/fee-on-transfer-token-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/non-standard-token-handling/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/fee-on-transfer-incompatibility/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/non-standard-token-handling/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/non-standard-erc20/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/fee-on-transfer-token-incompatibility/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/fee-on-transfer-token-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/cross-chain-bridge-issues/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/cross-chain-bridge-issues/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/cross-chain-bridge-issues/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/flash-loan-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/flash-loan-attacks/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/flash-loan-attack-vectors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "privacy/flash-loan-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/flash-loan-checkpoint-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/flash-loan-attacks/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/flash-loan-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/flash-loan-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/flash-loan-and-reward-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/flash-loan-attacks/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/flash-loan-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/flash-loan-attacks/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa-lending/frontrunning-unprotected-state-transitions/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/front-running-and-mev/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/front-running/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/front-running/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/front-running-sandwich-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/front-running/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/front-running-and-mev/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/frontrunning-mev/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/front-running-sandwich/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/front-running-and-mev/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/frontrunning-mev/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/frontrunning-mev/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/frontrunning-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/front-running/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/front-running-and-mev/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/incorrect-math-and-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "prediction-market/incorrect-fee-reward-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/incorrect-math-calculations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/incorrect-math-calculations/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/incorrect-math-calculations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/incorrect-fee-reward-accounting/4"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "privacy/incorrect-collateral-valuation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/incorrect-fee-reward-accounting/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/incorrect-fee-reward-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/incorrect-fee-reward-accounting/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/incorrect-arithmetic-logic/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/incorrect-math-calculations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/incorrect-fee-reward-accounting/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/incorrect-arithmetic-logic/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/incorrect-math-calculations/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/liquidation-logic-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/liquidation-mechanism-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/liquidation-logic-errors/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/liquidation-mechanism-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/liquidation-logic/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/liquidation-logic/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/liquidation-vulnerabilities/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/liquidation-logic-flaws/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "oracle/liquidation-mechanism-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/liquidation-logic-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/liquidation-logic/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/liquidation-mechanism-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/liquidation-mechanism-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/liquidation-logic/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/liquidation-logic/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/liquidation-logic-errors/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/liquidation-logic-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/liquidation-mechanism-flaws/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/liquidation-mechanism-flaws/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/liquidation-mechanism-flaws/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/liquidation-logic-errors/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/liquidation-vulnerabilities/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/liquidation-logic/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/liquidation-logic-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/liquidation-mechanism-flaws/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/liquidation-mechanism-flaws/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/liquidation-process-failures/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/liquidation-logic-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/reward-distribution/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/reward-distribution-errors/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/reward-distribution/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/reward-accounting-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/reward-accounting-errors/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/reward-distribution-errors/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/reward-accounting-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/reward-token-accounting/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/staking-reward-calculation-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/reward-accounting-errors/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/reward-token-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/reward-accounting-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/reward-distribution-errors/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/reward-distribution/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/reward-token-accounting/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "payments/reward-accounting-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/reward-distribution/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/reward-distribution/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "oracle/reward-distribution-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/reward-accounting/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/reward-distribution-issues/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/reward-distribution-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/reward-distribution/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/reward-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/reward-distribution/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "reserve-currency/reward-accounting-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/unsafe-token-interactions/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "oracle/vault-share-inflation-attack/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/first-depositor-share-inflation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/first-depositor-share-inflation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/share-price-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "leveraged-farming/first-depositor-vault-share-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/first-depositor-share-inflation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/first-depositor-share-inflation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield-aggregator/first-depositor-share-inflation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/first-depositor-share-inflation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cdp/vault-share-inflation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/vault-share-accounting-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/vault-share-inflation-first-depositor/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/vault-share-inflation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/first-depositor-share-inflation/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/first-depositor-share-inflation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/share-price-manipulation/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/first-depositor-share-inflation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/first-depositor-vault-share-inflation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/first-depositor-vault-share-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/share-price-manipulation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/token-approval-and-allowance/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "cross-chain/token-approval-and-allowance/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "decentralized-stablecoin/role-restriction-bypass/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/cross-chain-messaging-failures/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/cross-chain-messaging-failures/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/cross-chain-messaging-failures/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/cross-chain-messaging-failures/4"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/funding-rate-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/funding-rate-manipulation/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/funding-rate-manipulation/4"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/funding-rate-manipulation/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/position-open-interest-accounting/4"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/position-open-interest-accounting/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/position-open-interest-accounting/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "derivatives/position-open-interest-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "dexes/token-approval-issues/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "gaming/incomplete-transfer-restriction-bypass/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "gaming/nft-transfer-standard-interface-confusion/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "gaming/order-matching-validation-gaps/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "gaming/raffle-and-randomness-manipulation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "gaming/uninitialized-state-variable-exploits/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "gaming/unvalidated-user-supplied-nft-attributes/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/missing-access-controls/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/missing-transaction-deadline/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "indexes/royalty-fee-distribution-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/erc-standard-non-compliance/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/erc-standard-non-compliance/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/erc-standard-non-compliance/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/erc-standard-non-compliance/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/front-running-and-sandwich-attacks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "insurance/precision-loss-and-rounding-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/auction-mechanism-flaws/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/delegation-issues/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/eth-transfer-safety/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/oracle-price-issues/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "launchpad/selfdestruct-risks/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/accounting-share-mismatch/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/accounting-share-mismatch/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/accounting-share-mismatch/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/bad-debt-insolvency/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/bad-debt-insolvency/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/external-protocol-integration/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/external-protocol-integration/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/external-protocol-integration/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/interest-accrual-errors/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/interest-accrual-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/interest-accrual-errors/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/interest-rate-update-ordering/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/interest-rate-update-ordering/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/position-health-check/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/position-health-check/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/position-health-check/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/treasury-fee-accounting/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/treasury-fee-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "lending/treasury-fee-accounting/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/balance-accounting/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/balance-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/deadline-timestamp/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/deadline-timestamp/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/token-integration/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/token-integration/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/withdrawal-unstaking-issues/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquid-staking/withdrawal-unstaking-issues/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/cross-chain-bridge/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/cross-chain-bridge/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/cross-chain-bridge/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/fee-royalty-distribution/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/fee-royalty-distribution/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/fee-royalty-distribution/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/incorrect-accounting/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/incorrect-accounting/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/incorrect-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/math-precision/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/math-precision/3"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/math-precision/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/token-approval/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "liquidity-manager/token-approval/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/erc20-token-compatibility/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-lending/nft-collateral-locking/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/cross-chain-bridge-message-integrity/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/erc1155-handling-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/nft-transfer-standard-compliance/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/order-validation-and-matching/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "nft-marketplace/signature-validation-and-replay/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "options-vault/fee-bypass-and-accounting-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "oracle/bad-debt-and-protocol-insolvency/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "oracle/stale-oracle-price-data/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "prediction-market/missing-event-emission-offchain-inconsistency/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "privacy/missing-event-emissions/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "privacy/missing-two-step-ownership-transfer/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "privacy/operations-blocked-during-pause/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/blacklist-pause-dos/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/blacklist-pause-dos/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa/dos-unbounded-operations/1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa-lending/credit-line-queue-corruption/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "rwa-lending/timestamp-and-expiry-rounding-bypass/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/cross-chain-bridge-message-validation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/first-depositor-vault-inflation/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/missing-deadline-check/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "services/signature-replay-attack/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/approval-allowance-vulnerabilities/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "staking-pool/pause-blacklist-blocking-operations/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "synthetics/incorrect-math-accounting/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "uncollateralized-lending/interest-accounting-errors/0"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/rounding-precision-errors/2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "yield/rounding-precision-errors/1"
+    }
+  }
+]
