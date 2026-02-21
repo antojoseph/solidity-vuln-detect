@@ -60,7 +60,7 @@ Performance is scored with a deterministic reward function (no LLM-as-judge), ma
 
 ## Data Source
 
-Uses [protocol-vulnerabilities-index](https://github.com/kadenzipfel/protocol-vulnerabilities-index) — an auto-generated index of ~10,600 DeFi security audit findings across 32 protocol types and 460 vulnerability categories.
+Uses [protocol-vulnerabilities-index](https://github.com/kadenzipfel/protocol-vulnerabilities-index) — an auto-generated index of ~10,600 DeFi security audit findings across 32 protocol types and 460 vulnerability categories. You can optionally add curated clean snippets in `data/clean_scenarios.json` to train the "no vulnerability" class and `data/ood_scenarios.json` for out-of-distribution evaluation.
 
 Each category file contains annotated vulnerable Solidity code:
 
@@ -75,7 +75,28 @@ function deposit(uint256 amount) external returns (uint256 shares) {
 }
 ```
 
-The `// VULNERABLE:` and `// BUG:` annotations are **stripped** before showing code to the agent. The agent must identify the vulnerability without these hints.
+The `// VULNERABLE:` and `// BUG:` annotations are **stripped** before showing code to the agent. Inline and block comments are removed as well to avoid leakage, while bug line numbers are remapped to the cleaned code.
+
+### Optional clean scenarios (no-vulnerability)
+
+To train or evaluate the "no vulnerability" class, add a `data/clean_scenarios.json` file with curated safe snippets:
+
+```json
+[
+  {
+    "id": "clean/general/simple-storage",
+    "protocol_type": "general",
+    "code": "pragma solidity ^0.8.20;\ncontract SimpleStorage { uint256 value; function set(uint256 newValue) external { value = newValue; } function get() external view returns (uint256) { return value; } }"
+  }
+]
+```
+
+When present, `build_scenarios.py` will include these entries with `canonical_category = "no-vulnerability"`.
+It also writes `data/tasks_eval_clean.json` so you can run a clean-only evaluation via `--report-clean`.
+
+### Optional OOD scenarios
+
+To evaluate out-of-distribution performance, add `data/ood_scenarios.json` entries with a canonical category and bug line annotations. These are excluded from train/eval splits and instead written to `data/tasks_eval_ood.json` for `--report-ood` runs.
 
 ## Setup
 
@@ -110,7 +131,9 @@ hud set HUD_API_KEY=your-key-here
 git clone https://github.com/kadenzipfel/protocol-vulnerabilities-index.git /tmp/protocol-vulnerabilities-index
 
 # Run the data pipeline
-python build_scenarios.py /tmp/protocol-vulnerabilities-index
+    python build_scenarios.py /tmp/protocol-vulnerabilities-index
+    # Optional: avoid protocol overlap between train and eval
+    python build_scenarios.py /tmp/protocol-vulnerabilities-index --split-by-protocol
 ```
 
 This parses 460 category markdown files and produces:
@@ -132,20 +155,25 @@ Each scenario is mapped to one of ~20 canonical vulnerability categories (reentr
 | `read_code()` | View the Solidity snippet (with line numbers) | Required |
 | `get_context()` | Get protocol type and preconditions | None |
 | `list_hints()` | Get detection heuristics | Caps max reward at 0.7 |
-| `submit_finding(vulnerability_type, explanation, severity, affected_lines)` | Submit analysis | Triggers scoring |
+| `submit_finding(vulnerability_type, explanation, severity, affected_lines, attack_path, prerequisites, impact)` | Submit analysis (supports comma-separated labels, "no vulnerability") | Triggers scoring |
 
 ### Scoring (Deterministic, No LLM)
 
 | Component | Weight | Method |
 |-----------|--------|--------|
-| `category_match` | 50% | Word overlap + keyword matching against canonical category |
+| `category_match` | 45% | Word overlap + keyword matching against canonical category |
 | `explanation_quality` | 25% | Keyword heuristics: code references, attack vectors, causal reasoning |
-| `severity_match` | 10% | Valid severity submitted (HIGH/MEDIUM/LOW/CRITICAL) |
+| `severity_match` | 10% | Heuristic severity match per canonical category (HIGH/MEDIUM/LOW/CRITICAL/NONE) |
 | `line_accuracy` | 15% | F1 score between submitted and annotated bug lines (±1 tolerance) |
+| `exploitability` | 5% | Structured exploit path and impact signals |
 
-**Final reward** = `(weighted_sum) × hint_penalty`
+**Final reward** = `(weighted_sum) × schema_penalty × hint_penalty`
 
 Where `hint_penalty = 0.7` if `list_hints()` was called, else `1.0`.
+
+Additional penalties apply when submissions omit structured fields or over-label with multiple vulnerability types.
+
+Structured fields (`attack_path`, `prerequisites`, `impact`) are used in exploitability scoring and are required for full credit.
 
 Scoring is deterministic by design — same input always produces the same reward. This is critical for RL training where nondeterministic rewards create noisy gradients.
 
@@ -173,6 +201,8 @@ uv run python run_eval.py --mode quick --model gpt-4o
 ```bash
 # Run all 165 eval tasks across two models
 uv run python run_eval.py --mode eval --models gpt-4o-mini gpt-4o
+uv run python run_eval.py --mode eval --models gpt-4o-mini --report-clean
+uv run python run_eval.py --mode eval --models gpt-4o-mini --report-ood
 
 # Or limit to first N tasks for faster iteration
 uv run python run_eval.py --mode eval --models gpt-4o-mini --max-tasks 20
@@ -183,6 +213,12 @@ uv run python run_eval.py --mode eval --models gpt-4o-mini --max-tasks 20
 ```bash
 # Run training split with 3 episodes per task (diverse trajectories)
 uv run python run_eval.py --mode train --group 3
+```
+
+### Curriculum training
+
+```bash
+uv run python run_eval.py --mode curriculum --group 3
 ```
 
 ### Checkpoint evaluation (after RL training)
@@ -286,6 +322,9 @@ uv run python run_eval.py --mode quick
 
 # 5. Full baseline eval
 uv run python run_eval.py --mode eval --models gpt-4o-mini gpt-4o
+# Optional clean/ood reports (requires data/tasks_eval_clean.json or data/tasks_eval_ood.json)
+uv run python run_eval.py --mode eval --models gpt-4o-mini --report-clean
+uv run python run_eval.py --mode eval --models gpt-4o-mini --report-ood
 # → 330 episodes, mean reward 0.271 (before scoring fixes)
 
 # 6. After scoring fixes, re-eval
@@ -302,6 +341,9 @@ hud rft status <model-id>
 
 # 9. Evaluate checkpoint (after training completes)
 uv run python run_eval.py --mode checkpoint --checkpoint org/vuln-detect-v1
+
+# 10. Curriculum training (easy → hard)
+uv run python run_eval.py --mode curriculum --group 3
 ```
 
 ## License

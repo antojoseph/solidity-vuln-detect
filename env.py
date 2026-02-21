@@ -196,6 +196,9 @@ def submit_finding(
     explanation: str,
     severity: str = "HIGH",
     affected_lines: str = "",
+    attack_path: str = "",
+    prerequisites: str = "",
+    impact: str = "",
 ) -> str:
     """Submit your vulnerability analysis.
 
@@ -208,6 +211,9 @@ def submit_finding(
         severity: Impact level — 'HIGH' or 'MEDIUM'.
         affected_lines: Comma-separated line numbers where the root cause is
             (e.g. '5,6,7'). Use the line numbers from read_code().
+        attack_path: Step-by-step outline of how the exploit is executed.
+        prerequisites: Preconditions required for the exploit to work.
+        impact: Expected impact if exploited (e.g. fund loss, stolen assets).
     """
     parsed_lines = []
     if affected_lines.strip():
@@ -221,6 +227,9 @@ def submit_finding(
         "explanation": explanation,
         "severity": severity.upper(),
         "affected_lines": parsed_lines,
+        "attack_path": attack_path,
+        "prerequisites": prerequisites,
+        "impact": impact,
     }
     return f"Finding submitted: {vulnerability_type} ({severity}). Awaiting evaluation."
 
@@ -282,9 +291,20 @@ async def detect_vulnerability(scenario_id: str = "") -> Any:
     expl_score = _score_explanation(submission["explanation"], _current)
     sev_score = _score_severity(submission["severity"], _current)
     line_score = _score_lines(submission["affected_lines"], _current.get("bug_lines", []))
+    exploit_score = _score_exploitability(
+        submission.get("attack_path", ""),
+        submission.get("prerequisites", ""),
+        submission.get("impact", ""),
+    )
 
     # Weighted combination
-    raw = (0.50 * cat_score + 0.25 * expl_score + 0.10 * sev_score + 0.15 * line_score)
+    raw = (
+        0.45 * cat_score
+        + 0.25 * expl_score
+        + 0.10 * sev_score
+        + 0.15 * line_score
+        + 0.05 * exploit_score
+    )
     hint_penalty = 0.7 if _hints_used else 1.0
     final = round(raw * hint_penalty, 4)
 
@@ -295,14 +315,16 @@ async def detect_vulnerability(scenario_id: str = "") -> Any:
             f"Submitted: {submission['vulnerability_type']} "
             f"(expected: {_current['canonical_category']})\n"
             f"Scores — category: {cat_score:.2f}, explanation: {expl_score:.2f}, "
-            f"severity: {sev_score:.2f}, lines: {line_score:.2f}\n"
+            f"severity: {sev_score:.2f}, lines: {line_score:.2f}, "
+            f"exploitability: {exploit_score:.2f}\n"
             f"Hint penalty: {hint_penalty}, Final reward: {final}"
         ),
         subscores=[
-            SubScore(name="category_match", weight=0.50, value=cat_score),
+            SubScore(name="category_match", weight=0.45, value=cat_score),
             SubScore(name="explanation_quality", weight=0.25, value=expl_score),
             SubScore(name="severity_match", weight=0.10, value=sev_score),
             SubScore(name="line_accuracy", weight=0.15, value=line_score),
+            SubScore(name="exploitability", weight=0.05, value=exploit_score),
         ],
         info={
             "scenario_id": _current["id"],
@@ -313,6 +335,9 @@ async def detect_vulnerability(scenario_id: str = "") -> Any:
             "submitted_type": submission["vulnerability_type"],
             "submitted_severity": submission["severity"],
             "submitted_lines": submission["affected_lines"],
+            "submitted_attack_path": submission.get("attack_path", ""),
+            "submitted_prerequisites": submission.get("prerequisites", ""),
+            "submitted_impact": submission.get("impact", ""),
             "ground_truth_lines": _current.get("bug_lines", []),
         },
     )
@@ -475,6 +500,25 @@ def _score_lines(submitted: list[int], ground_truth: list[int]) -> float:
         return 0.0
     f1 = 2 * precision * recall / (precision + recall)
     return round(f1, 4)
+
+
+def _score_exploitability(attack_path: str, prerequisites: str, impact: str) -> float:
+    """Score exploitability fields based on completeness."""
+    def field_score(text: str) -> float:
+        words = len(text.split())
+        if words >= 8:
+            return 1.0
+        if words >= 4:
+            return 0.7
+        if words >= 1:
+            return 0.4
+        return 0.0
+
+    attack_score = field_score(attack_path)
+    prereq_score = field_score(prerequisites)
+    impact_score = field_score(impact)
+    score = 0.4 * attack_score + 0.3 * prereq_score + 0.3 * impact_score
+    return round(min(1.0, score), 4)
 
 
 # ---------------------------------------------------------------------------

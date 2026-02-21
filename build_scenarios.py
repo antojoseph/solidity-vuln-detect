@@ -7,6 +7,8 @@ Outputs:
     data/scenarios.json      — All scenario entries
     data/tasks_train.json    — 80% train split (HUD task format)
     data/tasks_eval.json     — 20% eval split (HUD task format)
+    data/tasks_eval_clean.json  — Optional clean-only eval set
+    data/tasks_eval_ood.json    — Optional OOD eval set
 """
 
 import json
@@ -294,6 +296,54 @@ def build_task_entry(scenario_id: str) -> dict:
     }
 
 
+def _load_optional_scenarios(path: Path, scenario_type: str) -> list[dict]:
+    if not path.exists():
+        return []
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    scenarios = []
+    for entry in data:
+        scenario_id = entry.get("id")
+        protocol_type = entry.get("protocol_type")
+        code = entry.get("code")
+        if not scenario_id or not protocol_type or not code:
+            print(f"Skipping malformed {scenario_type} entry: {entry}")
+            continue
+
+        if scenario_type == "clean":
+            canonical = "no-vulnerability"
+            category_slug = "no-vulnerability"
+            category_title = "No vulnerability"
+            bug_lines = []
+        else:
+            canonical = entry.get("canonical_category")
+            if not canonical:
+                print(f"Skipping OOD entry missing canonical_category: {entry}")
+                continue
+            category_slug = entry.get("category_slug", canonical)
+            category_title = entry.get("category_title", canonical)
+            bug_lines = entry.get("bug_lines", [])
+
+        code_clean = strip_annotations(code)
+        difficulty = assign_difficulty(code_clean, len(bug_lines))
+
+        scenarios.append({
+            "id": scenario_id,
+            "protocol_type": protocol_type,
+            "category_slug": category_slug,
+            "category_title": category_title,
+            "canonical_category": canonical,
+            "code_clean": code_clean,
+            "code_raw": code,
+            "hints": entry.get("hints", []),
+            "preconditions": entry.get("preconditions", ""),
+            "bug_lines": bug_lines,
+            "difficulty": difficulty,
+        })
+
+    return scenarios
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python build_scenarios.py /path/to/protocol-vulnerabilities-index")
@@ -305,22 +355,32 @@ def main():
         print(f"Error: {categories_dir} not found")
         sys.exit(1)
 
+    data_dir = Path(__file__).parent / "data"
+
     # Parse all category files
-    all_scenarios = []
+    base_scenarios = []
     for protocol_dir in sorted(categories_dir.iterdir()):
         if not protocol_dir.is_dir():
             continue
         protocol_type = protocol_dir.name
         for md_file in sorted(protocol_dir.glob("*.md")):
             scenarios = parse_category_file(md_file, protocol_type)
-            all_scenarios.extend(scenarios)
+            base_scenarios.extend(scenarios)
 
-    print(f"Parsed {len(all_scenarios)} scenarios from {categories_dir}")
+    clean_scenarios = _load_optional_scenarios(data_dir / "clean_scenarios.json", "clean")
+    ood_scenarios = _load_optional_scenarios(data_dir / "ood_scenarios.json", "ood")
+    all_scenarios = base_scenarios + clean_scenarios + ood_scenarios
+
+    print(f"Parsed {len(base_scenarios)} scenarios from {categories_dir}")
+    if clean_scenarios:
+        print(f"Loaded {len(clean_scenarios)} clean scenarios from data/clean_scenarios.json")
+    if ood_scenarios:
+        print(f"Loaded {len(ood_scenarios)} OOD scenarios from data/ood_scenarios.json")
 
     # Stats
     canonical_counts = defaultdict(int)
     difficulty_counts = defaultdict(int)
-    for s in all_scenarios:
+    for s in base_scenarios + clean_scenarios:
         canonical_counts[s["canonical_category"]] += 1
         difficulty_counts[s["difficulty"]] += 1
 
@@ -335,7 +395,7 @@ def main():
     # Stratified train/eval split (80/20)
     random.seed(42)
     by_category = defaultdict(list)
-    for s in all_scenarios:
+    for s in base_scenarios + clean_scenarios:
         by_category[s["canonical_category"]].append(s)
 
     train_ids = []
@@ -351,22 +411,33 @@ def main():
     print(f"\nSplit: {len(train_ids)} train, {len(eval_ids)} eval")
 
     # Write outputs
-    out_dir = Path(__file__).parent / "data"
-    out_dir.mkdir(exist_ok=True)
+    data_dir.mkdir(exist_ok=True)
 
-    with open(out_dir / "scenarios.json", "w") as f:
+    with open(data_dir / "scenarios.json", "w") as f:
         json.dump(all_scenarios, f, indent=2)
-    print(f"Wrote {out_dir / 'scenarios.json'}")
+    print(f"Wrote {data_dir / 'scenarios.json'}")
 
     train_tasks = [build_task_entry(sid) for sid in train_ids]
-    with open(out_dir / "tasks_train.json", "w") as f:
+    with open(data_dir / "tasks_train.json", "w") as f:
         json.dump(train_tasks, f, indent=2)
-    print(f"Wrote {out_dir / 'tasks_train.json'} ({len(train_tasks)} tasks)")
+    print(f"Wrote {data_dir / 'tasks_train.json'} ({len(train_tasks)} tasks)")
 
     eval_tasks = [build_task_entry(sid) for sid in eval_ids]
-    with open(out_dir / "tasks_eval.json", "w") as f:
+    with open(data_dir / "tasks_eval.json", "w") as f:
         json.dump(eval_tasks, f, indent=2)
-    print(f"Wrote {out_dir / 'tasks_eval.json'} ({len(eval_tasks)} tasks)")
+    print(f"Wrote {data_dir / 'tasks_eval.json'} ({len(eval_tasks)} tasks)")
+
+    if clean_scenarios:
+        clean_tasks = [build_task_entry(s["id"]) for s in clean_scenarios]
+        with open(data_dir / "tasks_eval_clean.json", "w") as f:
+            json.dump(clean_tasks, f, indent=2)
+        print(f"Wrote {data_dir / 'tasks_eval_clean.json'} ({len(clean_tasks)} tasks)")
+
+    if ood_scenarios:
+        ood_tasks = [build_task_entry(s["id"]) for s in ood_scenarios]
+        with open(data_dir / "tasks_eval_ood.json", "w") as f:
+            json.dump(ood_tasks, f, indent=2)
+        print(f"Wrote {data_dir / 'tasks_eval_ood.json'} ({len(ood_tasks)} tasks)")
 
 
 if __name__ == "__main__":
