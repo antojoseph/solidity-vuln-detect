@@ -127,6 +127,44 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "incorrect calculation", "wrong formula", "math error",
         "off by one", "accounting error",
     ],
+    "no-vulnerability": [
+        "no vulnerability", "no-vulnerability", "safe", "clean",
+        "no issue", "secure", "not vulnerable", "no bug", "no finding",
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# Expected severity per canonical category
+# ---------------------------------------------------------------------------
+
+CATEGORY_SEVERITY: dict[str, str] = {
+    "reentrancy": "HIGH",
+    "oracle-manipulation": "HIGH",
+    "access-control": "HIGH",
+    "flash-loan": "HIGH",
+    "first-depositor-inflation": "MEDIUM",
+    "precision-rounding": "MEDIUM",
+    "slippage-protection": "MEDIUM",
+    "fee-on-transfer": "MEDIUM",
+    "integer-overflow": "HIGH",
+    "denial-of-service": "MEDIUM",
+    "frontrunning-mev": "MEDIUM",
+    "governance": "MEDIUM",
+    "liquidation": "HIGH",
+    "input-validation": "LOW",
+    "reward-accounting": "MEDIUM",
+    "unchecked-returns": "MEDIUM",
+    "initialization": "HIGH",
+    "erc4626-vault": "MEDIUM",
+    "locked-funds": "MEDIUM",
+    "stale-state": "MEDIUM",
+    "signature-replay": "HIGH",
+    "incorrect-math": "MEDIUM",
+    "no-vulnerability": "NONE",
+}
+
+_SEVERITY_RANK: dict[str, int] = {
+    "NONE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4,
 }
 
 # ---------------------------------------------------------------------------
@@ -208,7 +246,7 @@ def submit_finding(
             'precision loss', 'denial of service', 'frontrunning', etc.)
         explanation: Detailed explanation of WHY the code is vulnerable,
             including what an attacker could exploit and how.
-        severity: Impact level — 'HIGH' or 'MEDIUM'.
+        severity: Impact level — 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', or 'NONE' for safe code.
         affected_lines: Comma-separated line numbers where the root cause is
             (e.g. '5,6,7'). Use the line numbers from read_code().
         attack_path: Step-by-step outline of how the exploit is executed.
@@ -295,18 +333,27 @@ async def detect_vulnerability(scenario_id: str = "") -> Any:
         submission.get("attack_path", ""),
         submission.get("prerequisites", ""),
         submission.get("impact", ""),
+        ground_canonical=_current["canonical_category"],
     )
+
+    # Schema penalty
+    schema_penalty = 1.0
+    if _current["canonical_category"] != "no-vulnerability":
+        if all(not submission.get(f, "").strip() for f in ("attack_path", "prerequisites", "impact")):
+            schema_penalty *= 0.9
+    if "," in submission["vulnerability_type"]:
+        schema_penalty *= 0.85
 
     # Weighted combination
     raw = (
-        0.45 * cat_score
+        0.40 * cat_score
         + 0.25 * expl_score
         + 0.10 * sev_score
         + 0.15 * line_score
-        + 0.05 * exploit_score
+        + 0.10 * exploit_score
     )
     hint_penalty = 0.7 if _hints_used else 1.0
-    final = round(raw * hint_penalty, 4)
+    final = round(raw * schema_penalty * hint_penalty, 4)
 
     yield EvaluationResult(
         reward=final,
@@ -317,14 +364,15 @@ async def detect_vulnerability(scenario_id: str = "") -> Any:
             f"Scores — category: {cat_score:.2f}, explanation: {expl_score:.2f}, "
             f"severity: {sev_score:.2f}, lines: {line_score:.2f}, "
             f"exploitability: {exploit_score:.2f}\n"
-            f"Hint penalty: {hint_penalty}, Final reward: {final}"
+            f"Schema penalty: {schema_penalty}, Hint penalty: {hint_penalty}, "
+            f"Final reward: {final}"
         ),
         subscores=[
-            SubScore(name="category_match", weight=0.45, value=cat_score),
+            SubScore(name="category_match", weight=0.40, value=cat_score),
             SubScore(name="explanation_quality", weight=0.25, value=expl_score),
             SubScore(name="severity_match", weight=0.10, value=sev_score),
             SubScore(name="line_accuracy", weight=0.15, value=line_score),
-            SubScore(name="exploitability", weight=0.05, value=exploit_score),
+            SubScore(name="exploitability", weight=0.10, value=exploit_score),
         ],
         info={
             "scenario_id": _current["id"],
@@ -332,6 +380,7 @@ async def detect_vulnerability(scenario_id: str = "") -> Any:
             "difficulty": _current["difficulty"],
             "hints_used": _hints_used,
             "code_read": _code_read,
+            "schema_penalty": schema_penalty,
             "submitted_type": submission["vulnerability_type"],
             "submitted_severity": submission["severity"],
             "submitted_lines": submission["affected_lines"],
@@ -357,6 +406,23 @@ def _score_category(submitted: str, ground_slug: str, ground_canonical: str) -> 
     sub = submitted.lower().strip()
     sub_slug = re.sub(r"[^a-z0-9]+", "-", sub).strip("-")
     sub_words = _to_words(submitted)
+
+    # --- Hard rules for "no-vulnerability" class ---
+    _NO_VULN_SLUGS = {
+        "no-vulnerability", "no-vulnerabilities", "no-vuln",
+        "safe", "clean", "secure", "no-issue", "no-issues",
+        "no-bug", "no-bugs", "no-finding", "no-findings",
+        "not-vulnerable",
+    }
+    sub_is_clean = sub_slug in _NO_VULN_SLUGS or "no vulnerability" in sub or "no-vulnerability" in sub
+    ground_is_clean = ground_canonical == "no-vulnerability"
+
+    if ground_is_clean and sub_is_clean:
+        return 1.0
+    if ground_is_clean and not sub_is_clean:
+        return 0.0  # False positive: reported vuln on safe code
+    if not ground_is_clean and sub_is_clean:
+        return 0.0  # False negative: said "safe" on vulnerable code
 
     # --- Exact match on canonical or raw slug ---
     if sub_slug == ground_canonical or sub_slug == ground_slug:
@@ -451,11 +517,11 @@ def _score_explanation(explanation: str, scenario: dict) -> float:
     if words >= 50:
         score += 0.15
     elif words >= 25:
-        score += 0.15
+        score += 0.12
     elif words >= 10:
-        score += 0.10
+        score += 0.08
     elif words >= 5:
-        score += 0.05
+        score += 0.04
 
     # 4. References preconditions (0.0 - 0.15)
     precond = scenario.get("preconditions", "").lower()
@@ -468,11 +534,28 @@ def _score_explanation(explanation: str, scenario: dict) -> float:
 
 
 def _score_severity(submitted: str, scenario: dict) -> float:
-    """Score severity classification. Participation-based (no reliable ground truth)."""
+    """Score severity classification against expected severity for the category."""
     sub = submitted.upper().strip()
-    if sub in ("HIGH", "MEDIUM", "LOW", "CRITICAL"):
-        return 0.8  # Credit for providing a valid severity
-    return 0.3  # Submitted something but not a standard severity
+    canonical = scenario.get("canonical_category", "")
+    expected = CATEGORY_SEVERITY.get(canonical)
+
+    if expected is None:
+        # Unknown category — fall back to participation scoring
+        return 0.8 if sub in _SEVERITY_RANK else 0.1
+
+    if sub == expected:
+        return 1.0
+
+    sub_rank = _SEVERITY_RANK.get(sub)
+    if sub_rank is None:
+        return 0.1
+
+    distance = abs(sub_rank - _SEVERITY_RANK[expected])
+    if distance == 1:
+        return 0.6
+    if distance == 2:
+        return 0.3
+    return 0.1
 
 
 def _score_lines(submitted: list[int], ground_truth: list[int]) -> float:
@@ -502,21 +585,77 @@ def _score_lines(submitted: list[int], ground_truth: list[int]) -> float:
     return round(f1, 4)
 
 
-def _score_exploitability(attack_path: str, prerequisites: str, impact: str) -> float:
-    """Score exploitability fields based on completeness."""
-    def field_score(text: str) -> float:
-        words = len(text.split())
-        if words >= 8:
+def _score_exploitability(
+    attack_path: str,
+    prerequisites: str,
+    impact: str,
+    ground_canonical: str = "",
+) -> float:
+    """Score exploitability fields based on completeness and quality."""
+    # --- No-vulnerability special case ---
+    if ground_canonical == "no-vulnerability":
+        all_empty = all(
+            t.strip().lower() in ("", "n/a", "none", "not applicable")
+            for t in (attack_path, prerequisites, impact)
+        )
+        if all_empty:
             return 1.0
-        if words >= 4:
-            return 0.7
-        if words >= 1:
-            return 0.4
-        return 0.0
+        total_words = sum(len(t.split()) for t in (attack_path, prerequisites, impact))
+        if total_words > 10:
+            return 0.2  # Heavy penalty for detailed false positive exploit
+        return 0.5
 
-    attack_score = field_score(attack_path)
-    prereq_score = field_score(prerequisites)
-    impact_score = field_score(impact)
+    # --- Quality keyword sets ---
+    _ACTION_VERBS = {
+        "call", "calls", "transfer", "transfers", "deploy", "deploys",
+        "invoke", "invokes", "manipulate", "manipulates", "drain", "drains",
+        "execute", "executes", "send", "sends", "approve", "approves",
+        "borrow", "borrows", "swap", "swaps", "withdraw", "withdraws",
+        "deposit", "deposits", "mint", "mints", "burn", "burns",
+        "exploit", "exploits", "trigger", "triggers",
+    }
+    _SEQUENCING = {
+        "step", "then", "first", "next", "finally", "subsequently",
+        "after", "before", "1.", "2.", "3.", "4.", "5.",
+    }
+    _IMPACT_TERMS = {
+        "funds", "tokens", "eth", "ether", "drain", "steal", "lock",
+        "dos", "loss", "profit", "damage", "collateral", "liquidat",
+        "insolvency", "bad debt", "freeze", "stuck", "permanently",
+    }
+    _PREREQ_TERMS = {
+        "requires", "must", "needs", "assumes", "when", "if",
+        "given", "condition", "prerequisite", "necessary",
+    }
+
+    def _field_score(text: str, quality_terms: set[str]) -> float:
+        text_lower = text.lower()
+        words = len(text.split())
+
+        if words >= 8:
+            baseline = 1.0
+        elif words >= 4:
+            baseline = 0.7
+        elif words >= 1:
+            baseline = 0.4
+        else:
+            return 0.0
+
+        hits = sum(1 for term in quality_terms if term in text_lower)
+        if hits >= 3:
+            quality = 1.0
+        elif hits >= 2:
+            quality = 0.9
+        elif hits >= 1:
+            quality = 0.75
+        else:
+            quality = 0.5
+
+        return baseline * quality
+
+    attack_score = _field_score(attack_path, _ACTION_VERBS | _SEQUENCING)
+    prereq_score = _field_score(prerequisites, _PREREQ_TERMS)
+    impact_score = _field_score(impact, _IMPACT_TERMS)
     score = 0.4 * attack_score + 0.3 * prereq_score + 0.3 * impact_score
     return round(min(1.0, score), 4)
 
