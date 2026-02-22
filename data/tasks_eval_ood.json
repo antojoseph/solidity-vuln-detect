@@ -1,0 +1,650 @@
+[
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2023-07-pooltogether/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2023-07-pooltogether/H-04"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2023-10-nextgen/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2023-10-nextgen/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2023-12-ethereumcreditguild/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2023-12-ethereumcreditguild/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-01-curves/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-01-curves/H-04"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-01-curves/H-05"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-01-renft/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-01-renft/H-06"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-03-taiko/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-03-taiko/H-05"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-04-noya/H-08"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-05-olas/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-06-size/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-06-size/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-06-size/H-04"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-07-basin/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-07-basin/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-07-benddao/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-07-benddao/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-07-benddao/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-07-benddao/H-06"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-07-benddao/H-07"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-07-traitforge/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-08-phi/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-08-phi/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-08-phi/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-08-phi/H-06"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2024-08-wildcat/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2025-01-liquid-ron/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2025-04-forte/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2025-04-forte/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2025-04-forte/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2025-04-virtuals/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2025-04-virtuals/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2025-05-blackhole/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2025-06-panoptic/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench/2025-06-panoptic/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-01-canto/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-01-canto/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-01-curves/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-01-init-capital-invitational/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-01-init-capital-invitational/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-01-init-capital-invitational/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-01-renft/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-01-renft/H-07"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-02-althea-liquid-infrastructure/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-03-abracadabra-money/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-03-abracadabra-money/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-03-abracadabra-money/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-03-abracadabra-money/H-04"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-03-canto/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-03-gitcoin/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-03-neobase/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-03-taiko/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-03-taiko/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-04"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-05"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-06"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-07"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-09"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-10"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-11"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-12"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-13"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-14"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-15"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-16"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-18"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-19"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-21"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-22"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-04-noya/H-23"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-05-arbitrum-foundation/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-05-munchables/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-05-munchables/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-05-olas/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-06-size/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-06-thorchain/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-06-thorchain/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-06-vultisig/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-06-vultisig/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-07-benddao/H-04"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-07-benddao/H-08"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-07-munchables/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-07-munchables/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-07-munchables/H-05"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-07-traitforge/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-08-phi/H-04"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-08-phi/H-07"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-12-secondswap/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-12-secondswap/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2024-12-secondswap/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2025-01-next-generation/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2025-04-forte/H-05"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2025-04-virtuals/H-04"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2025-04-virtuals/H-05"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2025-10-sequence/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2025-10-sequence/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2026-01-tempo-feeamm/H-01"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2026-01-tempo-mpp-streams/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2026-01-tempo-mpp-streams/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2026-01-tempo-stablecoin-dex/H-02"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2026-01-tempo-stablecoin-dex/H-03"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "ood/evmbench-md/2026-01-tempo-stablecoin-dex/H-04"
+    }
+  }
+]

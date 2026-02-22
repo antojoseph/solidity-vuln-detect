@@ -205,11 +205,12 @@ def get_context() -> str:
     Returns the protocol type and preconditions that describe when this
     vulnerability pattern applies. No reward penalty for using this tool."""
     protocol_type = _current.get("protocol_type", "unknown")
+    protocol_name = _current.get("protocol_name", "")
     preconditions = _current.get("preconditions", "No preconditions available.")
-    return (
-        f"Protocol type: {protocol_type}\n\n"
-        f"Preconditions:\n{preconditions}"
-    )
+    header = f"Protocol type: {protocol_type}"
+    if protocol_name:
+        header += f"\nProtocol: {protocol_name}"
+    return f"{header}\n\nPreconditions:\n{preconditions}"
 
 
 @env.tool()
@@ -537,7 +538,7 @@ def _score_severity(submitted: str, scenario: dict) -> float:
     """Score severity classification against expected severity for the category."""
     sub = submitted.upper().strip()
     canonical = scenario.get("canonical_category", "")
-    expected = CATEGORY_SEVERITY.get(canonical)
+    expected = scenario.get("ground_truth_severity") or CATEGORY_SEVERITY.get(canonical)
 
     if expected is None:
         # Unknown category — fall back to participation scoring

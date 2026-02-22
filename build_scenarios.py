@@ -1,4 +1,7 @@
-"""Build scenarios.json and task splits from protocol-vulnerabilities-index.
+"""Build scenarios.json and task splits from real audit findings.
+
+Reads data/findings/protocols/*.json from the protocol-vulnerabilities-index repo
+and loads actual .sol source files from cloned contest repos (see fetch_repos.py).
 
 Usage:
     python build_scenarios.py /path/to/protocol-vulnerabilities-index
@@ -7,8 +10,6 @@ Outputs:
     data/scenarios.json      — All scenario entries
     data/tasks_train.json    — 80% train split (HUD task format)
     data/tasks_eval.json     — 20% eval split (HUD task format)
-    data/tasks_eval_clean.json  — Optional clean-only eval set
-    data/tasks_eval_ood.json    — Optional OOD eval set
 """
 
 import json
@@ -19,7 +20,19 @@ from collections import defaultdict
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Canonical category mapping: ~305 raw slugs → ~20 classes
+# GitHub URL parsing
+# ---------------------------------------------------------------------------
+
+GITHUB_SOL_URL_RE = re.compile(
+    r"https://github\.com/"
+    r"(?P<org>[^/]+)/(?P<repo>[^/]+)"
+    r"/blob/(?P<ref>[^/]+)/"
+    r"(?P<filepath>[^\s)>\]#]+\.sol)"
+    r"(?:#L(?P<start>\d+)(?:-L(?P<end>\d+))?)?"
+)
+
+# ---------------------------------------------------------------------------
+# Canonical category mapping (reused from original)
 # ---------------------------------------------------------------------------
 
 CANONICAL_CATEGORIES: dict[str, list[str]] = {
@@ -171,21 +184,250 @@ CANONICAL_CATEGORIES: dict[str, list[str]] = {
     ],
 }
 
-# Build reverse lookup
 _SLUG_TO_CANONICAL: dict[str, str] = {}
-for canonical, slugs in CANONICAL_CATEGORIES.items():
-    for slug in slugs:
-        _SLUG_TO_CANONICAL[slug] = canonical
+for _canonical, _slugs in CANONICAL_CATEGORIES.items():
+    for _slug in _slugs:
+        _SLUG_TO_CANONICAL[_slug] = _canonical
+
+# ---------------------------------------------------------------------------
+# Tag → canonical category mapping
+# ---------------------------------------------------------------------------
+
+TAG_TO_CANONICAL: dict[str, str] = {
+    # Reentrancy
+    "Reentrancy": "reentrancy",
+    "Read-only Reentrancy": "reentrancy",
+    # Oracle
+    "Oracle": "oracle-manipulation",
+    "Stale Price": "oracle-manipulation",
+    "Chainlink": "oracle-manipulation",
+    # Access control
+    "Access Control": "access-control",
+    "Admin": "access-control",
+    "Can't Remove Access Control": "access-control",
+    "Update State After Admin Action": "access-control",
+    # Flash loan
+    "Flash Loan": "flash-loan",
+    # First depositor
+    "First Depositor Issue": "first-depositor-inflation",
+    "Share Inflation": "first-depositor-inflation",
+    # Precision / rounding
+    "Decimals": "precision-rounding",
+    "Rounding": "precision-rounding",
+    "Precision Loss": "precision-rounding",
+    "Time Rounding": "precision-rounding",
+    # Slippage
+    "Slippage": "slippage-protection",
+    "Sandwich Attack": "slippage-protection",
+    # Fee on transfer
+    "Fee On Transfer": "fee-on-transfer",
+    # Overflow
+    "Overflow/Underflow": "integer-overflow",
+    # DoS
+    "DOS": "denial-of-service",
+    "Denial-Of-Service": "denial-of-service",
+    "Grief Attack": "denial-of-service",
+    # Frontrunning
+    "Front-Running": "frontrunning-mev",
+    # Governance
+    "Vote": "governance",
+    # Liquidation
+    "Liquidation": "liquidation",
+    # Input validation
+    "Validation": "input-validation",
+    "Min/Max Cap Validation": "input-validation",
+    "Change Validation": "input-validation",
+    "Data Validation": "input-validation",
+    "Missing Check": "input-validation",
+    "MinOut/MaxIn Validation": "input-validation",
+    # Reward accounting
+    "Deposit/Reward tokens": "reward-accounting",
+    # Unchecked returns
+    "Check Return Value": "unchecked-returns",
+    # Initialization
+    "Initialization": "initialization",
+    "Initializer": "initialization",
+    "onlyInitializing modifier": "initialization",
+    "initializer modifier": "initialization",
+    # ERC4626
+    "ERC4626": "erc4626-vault",
+    # Locked funds
+    "Fund Lock": "locked-funds",
+    # Stale state
+    "Don't update state": "stale-state",
+    # Signature replay
+    "Replay Attack": "signature-replay",
+    "Signature Malleability": "signature-replay",
+    # Incorrect math
+    "Wrong Math": "incorrect-math",
+}
+
+# Keywords for fallback category matching (from env.py)
+CATEGORY_KEYWORDS: dict[str, list[str]] = {
+    "reentrancy": [
+        "reentrancy", "reentrant", "re-enter", "callback",
+        "external call before state", "checks-effects-interactions", "CEI",
+    ],
+    "oracle-manipulation": [
+        "oracle", "price feed", "stale price", "chainlink", "twap",
+        "latestAnswer", "latestRoundData", "price manipulation",
+    ],
+    "access-control": [
+        "access control", "authorization", "privilege", "onlyOwner",
+        "modifier", "permissioned", "admin", "unauthorized",
+    ],
+    "flash-loan": [
+        "flash loan", "flashloan", "single transaction", "atomic",
+        "borrow and repay", "flash mint",
+    ],
+    "first-depositor-inflation": [
+        "first depositor", "share inflation", "vault inflation",
+        "donation attack", "dead shares", "empty vault",
+    ],
+    "precision-rounding": [
+        "precision", "rounding", "truncation", "decimal",
+        "division before multiplication", "loss of precision",
+    ],
+    "slippage-protection": [
+        "slippage", "minimum output", "amountOutMin", "sandwich",
+        "frontrun", "deadline", "max slippage",
+    ],
+    "fee-on-transfer": [
+        "fee on transfer", "deflationary", "rebasing",
+        "non-standard erc20", "actual amount", "transfer amount mismatch",
+    ],
+    "integer-overflow": [
+        "overflow", "underflow", "unchecked", "type casting",
+        "unsafe cast", "truncation",
+    ],
+    "denial-of-service": [
+        "denial of service", "dos", "gas limit", "unbounded loop",
+        "griefing", "block gas", "out of gas",
+    ],
+    "frontrunning-mev": [
+        "frontrun", "front-run", "MEV", "sandwich", "mempool",
+        "transaction ordering", "block builder",
+    ],
+    "governance": [
+        "governance", "voting", "proposal", "quorum", "delegate",
+        "vote manipulation", "flash vote",
+    ],
+    "liquidation": [
+        "liquidation", "liquidate", "collateral", "health factor",
+        "underwater", "bad debt", "insolvency",
+    ],
+    "input-validation": [
+        "input validation", "missing check", "require", "assert",
+        "boundary", "zero address", "zero amount",
+    ],
+    "reward-accounting": [
+        "reward", "staking reward", "distribution", "accrual",
+        "reward per share", "earned", "claim",
+    ],
+    "unchecked-returns": [
+        "unchecked return", "return value", "safeTransfer",
+        "approve", "low-level call", "success check",
+    ],
+    "initialization": [
+        "initialize", "initializer", "proxy", "upgrade",
+        "implementation", "uninitialized", "reinitialize",
+    ],
+    "erc4626-vault": [
+        "erc4626", "vault", "share price", "convertToShares",
+        "convertToAssets", "maxDeposit", "maxWithdraw",
+    ],
+    "locked-funds": [
+        "locked", "stuck", "trapped", "irrecoverable",
+        "cannot withdraw", "permanently lost", "excess ETH",
+    ],
+    "stale-state": [
+        "stale", "outdated", "not updated", "missing update",
+        "cached", "desync", "inconsistent state",
+    ],
+    "signature-replay": [
+        "replay", "signature", "nonce", "ecrecover",
+        "EIP-712", "permit", "cross-chain replay",
+    ],
+    "incorrect-math": [
+        "incorrect calculation", "wrong formula", "math error",
+        "off by one", "accounting error",
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# Code extraction helpers
+# ---------------------------------------------------------------------------
+
+# Patterns indicating JS/TS test code (not Solidity)
+_JS_INDICATORS = re.compile(
+    r"(?:describe\s*\(|it\s*\(|it\.only\s*\(|await\s|ethers\.|expect\s*\(|"
+    r"const\s+\{|require\s*\(\s*['\"]|import\s+\{|async\s+function|"
+    r"\.connect\s*\(|\.deploy\s*\(|hardhat|waffle|chai|mocha)",
+    re.IGNORECASE,
+)
+
+# Patterns indicating Solidity code
+_SOL_INDICATORS = re.compile(
+    r"(?:function\s+\w+|contract\s+\w+|pragma\s+solidity|mapping\s*\(|"
+    r"uint256\s|address\s|bytes32\s|modifier\s+\w+|event\s+\w+|"
+    r"require\s*\([^'\"]*,|emit\s+\w+|storage\s|memory\s|calldata\s)",
+)
+
+# Audit markers in code
+_AUDIT_MARKER_RE = re.compile(
+    r"//\s*(?:<={2,}|<--\s*|@audit\b|@audit-issue\b|@audit-info\b|BUG:|VULNERABLE:)",
+    re.IGNORECASE,
+)
+
+# Code block extraction from markdown
+_CODE_BLOCK_RE = re.compile(
+    r"```(?:solidity|sol|)?\s*\n(.*?)```",
+    re.DOTALL,
+)
+
+# Section headers in finding content
+_MITIGATION_SECTION_RE = re.compile(
+    r"###?\s*(?:Recommended\s+Mitigation|Mitigation|Fix(?:ed)?|Remediation)\b",
+    re.IGNORECASE,
+)
+
+_POC_SECTION_RE = re.compile(
+    r"###?\s*(?:Proof\s+of\s+Concept|PoC|Test)\b",
+    re.IGNORECASE,
+)
 
 
-def strip_annotations(code: str) -> str:
-    """Remove VULNERABLE and BUG annotations from code."""
+def _is_solidity(code: str) -> bool:
+    """Check if code block looks like Solidity (not JS/TS test code)."""
+    if _JS_INDICATORS.search(code):
+        return False
+    return bool(_SOL_INDICATORS.search(code))
+
+
+def _extract_audit_markers(code: str) -> list[int]:
+    """Find line numbers (1-indexed) with audit markers."""
+    lines = []
+    for i, line in enumerate(code.split("\n"), 1):
+        if _AUDIT_MARKER_RE.search(line):
+            lines.append(i)
+    return lines
+
+
+def _strip_audit_markers(code: str) -> str:
+    """Remove audit marker comments from code."""
     lines = []
     for line in code.split("\n"):
-        # Skip lines that are just VULNERABLE comments
-        if re.match(r"^\s*//\s*VULNERABLE:", line):
-            continue
-        # Remove inline BUG comments
+        # Skip lines that are ONLY an audit marker comment
+        stripped = line.strip()
+        if stripped.startswith("//") and _AUDIT_MARKER_RE.search(stripped):
+            # Check if it's a standalone comment line (no code before it)
+            if re.match(r"^\s*//", line):
+                continue
+        # Remove inline audit markers
+        line = re.sub(r"\s*//\s*(?:<={2,}|<--\s*).*$", "", line)
+        line = re.sub(r"\s*//\s*@audit\b.*$", "", line)
+        line = re.sub(r"\s*//\s*@audit-issue\b.*$", "", line)
+        line = re.sub(r"\s*//\s*@audit-info\b.*$", "", line)
         line = re.sub(r"\s*//\s*BUG:.*$", "", line)
         lines.append(line)
     # Remove leading/trailing blank lines
@@ -196,18 +438,133 @@ def strip_annotations(code: str) -> str:
     return "\n".join(lines)
 
 
-def extract_bug_lines(code_raw: str) -> list[int]:
-    """Find line numbers (1-indexed) with // BUG: annotations."""
-    bug_lines = []
-    for i, line in enumerate(code_raw.split("\n"), 1):
-        if "// BUG:" in line:
-            bug_lines.append(i)
-    return bug_lines
+def extract_solidity_from_content(content: str) -> list[tuple[str, list[int]]]:
+    """Extract Solidity code blocks from finding content.
+
+    Returns list of (code, audit_marker_lines) tuples.
+    Filters out JS/TS test code and mitigation/fix code.
+    """
+    # Find where mitigation section starts (we want code BEFORE it)
+    mitigation_start = len(content)
+    m = _MITIGATION_SECTION_RE.search(content)
+    if m:
+        mitigation_start = m.start()
+
+    # Also note PoC section (deprioritize code from there)
+    poc_start = len(content)
+    m = _POC_SECTION_RE.search(content)
+    if m:
+        poc_start = m.start()
+
+    results = []
+    for m in _CODE_BLOCK_RE.finditer(content):
+        code = m.group(1).strip()
+        block_pos = m.start()
+
+        # Skip code in mitigation section
+        if block_pos >= mitigation_start:
+            continue
+
+        # Skip non-Solidity code
+        if not _is_solidity(code):
+            continue
+
+        # Skip very short blocks
+        non_empty = [l for l in code.split("\n") if l.strip()]
+        if len(non_empty) < 5:
+            continue
+
+        # Deprioritize PoC section code (but still include if it's Solidity)
+        is_poc = block_pos >= poc_start
+
+        audit_lines = _extract_audit_markers(code)
+        results.append((code, audit_lines, is_poc))
+
+    # Sort: non-PoC first, then by length (longer = more complete)
+    results.sort(key=lambda x: (x[2], -len(x[0])))
+
+    # Return without the is_poc flag
+    return [(code, lines) for code, lines, _ in results]
 
 
-def assign_difficulty(code_clean: str, bug_line_count: int) -> str:
-    """Assign difficulty based on code length and annotation density."""
-    lines = [l for l in code_clean.split("\n") if l.strip()]
+def parse_source_refs(content: str) -> list[dict]:
+    """Parse GitHub source code URLs from finding content.
+
+    Returns list of {org, repo, filepath, start_line, end_line} dicts.
+    Only includes refs that appear BEFORE the mitigation section.
+    """
+    mitigation_start = len(content)
+    m = _MITIGATION_SECTION_RE.search(content)
+    if m:
+        mitigation_start = m.start()
+
+    refs = []
+    seen = set()
+    for m in GITHUB_SOL_URL_RE.finditer(content):
+        if m.start() >= mitigation_start:
+            continue
+        key = (m.group("org"), m.group("repo"), m.group("filepath"))
+        if key in seen:
+            continue
+        seen.add(key)
+        refs.append({
+            "org": m.group("org"),
+            "repo": m.group("repo"),
+            "filepath": m.group("filepath"),
+            "start_line": int(m.group("start")) if m.group("start") else None,
+            "end_line": int(m.group("end")) if m.group("end") else None,
+        })
+    return refs
+
+
+# ---------------------------------------------------------------------------
+# Category mapping
+# ---------------------------------------------------------------------------
+
+def map_to_canonical(tags: list[str], title: str, summary: str) -> tuple[str, str]:
+    """Map finding to canonical category.
+
+    Returns (canonical_category, category_slug).
+    """
+    # Layer 1: tag lookup
+    for tag in tags:
+        canonical = TAG_TO_CANONICAL.get(tag)
+        if canonical:
+            slug = re.sub(r"[^a-z0-9]+", "-", tag.lower()).strip("-")
+            return canonical, slug
+
+    # Layer 2: keyword matching on title + summary
+    text = f"{title} {summary}".lower()
+    best_cat = None
+    best_hits = 0
+    for canonical, keywords in CATEGORY_KEYWORDS.items():
+        hits = sum(1 for kw in keywords if kw.lower() in text)
+        if hits > best_hits:
+            best_hits = hits
+            best_cat = canonical
+
+    if best_cat and best_hits >= 2:
+        return best_cat, best_cat
+
+    # Single keyword hit — lower confidence but still use it
+    if best_cat and best_hits == 1:
+        return best_cat, best_cat
+
+    # Fallback: slugify the first tag or use "unknown"
+    if tags:
+        slug = re.sub(r"[^a-z0-9]+", "-", tags[0].lower()).strip("-")
+        return slug, slug
+
+    return "unknown", "unknown"
+
+
+# ---------------------------------------------------------------------------
+# Difficulty
+# ---------------------------------------------------------------------------
+
+def assign_difficulty(code: str) -> str:
+    """Assign difficulty based on code length."""
+    lines = [l for l in code.split("\n") if l.strip()]
     n = len(lines)
     if n <= 10:
         return "easy"
@@ -217,86 +574,12 @@ def assign_difficulty(code_clean: str, bug_line_count: int) -> str:
         return "hard"
 
 
-def parse_category_file(filepath: Path, protocol_type: str) -> list[dict]:
-    """Parse a single category markdown file into scenario entries."""
-    content = filepath.read_text(encoding="utf-8")
-    category_slug = filepath.stem
-
-    # Extract title
-    title_match = re.match(r"# (.+)", content)
-    category_title = title_match.group(1).strip() if title_match else category_slug
-
-    # Extract Preconditions section
-    precond_match = re.search(
-        r"## Preconditions\n(.*?)(?=\n## )", content, re.DOTALL
-    )
-    preconditions = precond_match.group(1).strip() if precond_match else ""
-
-    # Extract Vulnerable Pattern section
-    vuln_match = re.search(
-        r"## Vulnerable Pattern\n(.*?)(?=\n## )", content, re.DOTALL
-    )
-    if not vuln_match:
-        return []
-    vuln_section = vuln_match.group(1)
-
-    # Extract Detection Heuristics
-    hints_match = re.search(
-        r"## Detection Heuristics\n(.*?)(?=\n## )", content, re.DOTALL
-    )
-    hints = []
-    if hints_match:
-        for line in hints_match.group(1).strip().split("\n"):
-            line = re.sub(r"^\d+\.\s*", "", line.strip())
-            if line:
-                hints.append(line)
-
-    # Extract all solidity code blocks from the Vulnerable Pattern section
-    code_blocks = re.findall(r"```solidity\n(.*?)```", vuln_section, re.DOTALL)
-    if not code_blocks:
-        return []
-
-    # Map to canonical category
-    canonical = _SLUG_TO_CANONICAL.get(category_slug, category_slug)
-
-    scenarios = []
-    for i, code_raw in enumerate(code_blocks):
-        code_raw = code_raw.strip()
-        code_clean = strip_annotations(code_raw)
-
-        # Skip if stripping removed all meaningful code
-        if len(code_clean.strip()) < 20:
-            continue
-
-        bug_lines = extract_bug_lines(code_raw)
-        difficulty = assign_difficulty(code_clean, len(bug_lines))
-
-        scenarios.append({
-            "id": f"{protocol_type}/{category_slug}/{i}",
-            "protocol_type": protocol_type,
-            "category_slug": category_slug,
-            "category_title": category_title,
-            "canonical_category": canonical,
-            "code_clean": code_clean,
-            "code_raw": code_raw,
-            "hints": hints,
-            "preconditions": preconditions,
-            "bug_lines": bug_lines,
-            "difficulty": difficulty,
-        })
-
-    return scenarios
-
-
-def build_task_entry(scenario_id: str) -> dict:
-    """Build a HUD-compatible task entry."""
-    return {
-        "scenario": "detect-vuln",
-        "args": {"scenario_id": scenario_id},
-    }
-
+# ---------------------------------------------------------------------------
+# Optional scenario loaders (clean / OOD)
+# ---------------------------------------------------------------------------
 
 def _load_optional_scenarios(path: Path, scenario_type: str) -> list[dict]:
+    """Load clean_scenarios.json or ood_scenarios.json if present."""
     if not path.exists():
         return []
 
@@ -307,25 +590,25 @@ def _load_optional_scenarios(path: Path, scenario_type: str) -> list[dict]:
         protocol_type = entry.get("protocol_type")
         code = entry.get("code")
         if not scenario_id or not protocol_type or not code:
-            print(f"Skipping malformed {scenario_type} entry: {entry}")
+            print(f"Skipping malformed {scenario_type} entry: {entry.get('id', '?')}")
             continue
 
         if scenario_type == "clean":
             canonical = "no-vulnerability"
             category_slug = "no-vulnerability"
             category_title = "No vulnerability"
-            bug_lines = []
+            bug_lines: list[int] = []
         else:
             canonical = entry.get("canonical_category")
             if not canonical:
-                print(f"Skipping OOD entry missing canonical_category: {entry}")
+                print(f"Skipping OOD entry missing canonical_category: {entry.get('id')}")
                 continue
             category_slug = entry.get("category_slug", canonical)
             category_title = entry.get("category_title", canonical)
             bug_lines = entry.get("bug_lines", [])
 
-        code_clean = strip_annotations(code)
-        difficulty = assign_difficulty(code_clean, len(bug_lines))
+        code_clean = _strip_audit_markers(code)
+        difficulty = assign_difficulty(code_clean)
 
         scenarios.append({
             "id": scenario_id,
@@ -344,34 +627,195 @@ def _load_optional_scenarios(path: Path, scenario_type: str) -> list[dict]:
     return scenarios
 
 
+# ---------------------------------------------------------------------------
+# Main pipeline
+# ---------------------------------------------------------------------------
+
+def build_task_entry(scenario_id: str) -> dict:
+    """Build a HUD-compatible task entry."""
+    return {
+        "scenario": "detect-vuln",
+        "args": {"scenario_id": scenario_id},
+    }
+
+
+def process_finding(
+    finding: dict,
+    protocol_type: str,
+    repos_dir: Path,
+) -> list[dict]:
+    """Process a single finding into scenario entries.
+
+    Returns 0 or more scenario dicts.
+    """
+    finding_id = finding.get("id", "")
+    content = finding.get("content", "")
+    title = finding.get("title", "")
+    summary = finding.get("summary", "")
+    tags = finding.get("tags", [])
+    impact = finding.get("impact", "").upper()
+    quality = finding.get("quality_score", 0)
+    protocol_name = finding.get("protocol_name", "")
+    firm_name = finding.get("firm_name", "")
+
+    # Quality filter
+    if quality < 3:
+        return []
+
+    # Map category
+    canonical, category_slug = map_to_canonical(tags, title, summary)
+
+    scenarios = []
+
+    # Strategy 1: Try to load full .sol files from cloned repos
+    source_refs = parse_source_refs(content)
+    repo_scenarios_created = False
+
+    for ref_idx, ref in enumerate(source_refs[:2]):  # Max 2 files per finding
+        repo_path = repos_dir / ref["org"] / ref["repo"]
+        file_path = repo_path / ref["filepath"]
+
+        if not file_path.exists():
+            continue
+
+        try:
+            code_raw = file_path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+
+        # Skip files that are too large (>1000 lines) or too small (<5 lines)
+        line_count = len(code_raw.split("\n"))
+        if line_count > 1000 or line_count < 5:
+            continue
+
+        # Derive bug_lines from the URL line range
+        bug_lines = []
+        if ref["start_line"]:
+            start = ref["start_line"]
+            end = ref["end_line"] or start
+            bug_lines = list(range(start, end + 1))
+
+        # Also check for audit markers in the code itself
+        audit_markers = _extract_audit_markers(code_raw)
+        if audit_markers and not bug_lines:
+            bug_lines = audit_markers
+
+        code_clean = _strip_audit_markers(code_raw)
+        difficulty = assign_difficulty(code_clean)
+
+        scenario_id = f"findings/{protocol_type}/{finding_id}/{ref_idx}"
+        scenarios.append({
+            "id": scenario_id,
+            "protocol_type": protocol_type,
+            "category_slug": category_slug,
+            "category_title": title,
+            "canonical_category": canonical,
+            "code_clean": code_clean,
+            "code_raw": code_raw,
+            "hints": [],
+            "preconditions": summary,
+            "bug_lines": bug_lines,
+            "difficulty": difficulty,
+            "ground_truth_severity": impact,
+            "finding_id": finding_id,
+            "protocol_name": protocol_name,
+            "firm_name": firm_name,
+            "quality_score": quality,
+            "source_file": ref["filepath"],
+        })
+        repo_scenarios_created = True
+
+    # Strategy 2: Fallback to extracting code from content
+    if not repo_scenarios_created:
+        code_blocks = extract_solidity_from_content(content)
+        for block_idx, (code_raw, audit_lines) in enumerate(code_blocks[:1]):  # Max 1 from content
+            code_clean = _strip_audit_markers(code_raw)
+
+            # Skip very short extracts
+            non_empty = [l for l in code_clean.split("\n") if l.strip()]
+            if len(non_empty) < 5:
+                continue
+
+            difficulty = assign_difficulty(code_clean)
+            scenario_id = f"findings/{protocol_type}/{finding_id}/snippet{block_idx}"
+            scenarios.append({
+                "id": scenario_id,
+                "protocol_type": protocol_type,
+                "category_slug": category_slug,
+                "category_title": title,
+                "canonical_category": canonical,
+                "code_clean": code_clean,
+                "code_raw": code_raw,
+                "hints": [],
+                "preconditions": summary,
+                "bug_lines": audit_lines,
+                "difficulty": difficulty,
+                "ground_truth_severity": impact,
+                "finding_id": finding_id,
+                "protocol_name": protocol_name,
+                "firm_name": firm_name,
+                "quality_score": quality,
+                "source_file": "",
+            })
+
+    return scenarios
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python build_scenarios.py /path/to/protocol-vulnerabilities-index")
         sys.exit(1)
 
-    repo_path = Path(sys.argv[1])
-    categories_dir = repo_path / "categories"
-    if not categories_dir.exists():
-        print(f"Error: {categories_dir} not found")
+    index_repo = Path(sys.argv[1])
+    findings_dir = index_repo / "data" / "findings" / "protocols"
+    if not findings_dir.exists():
+        print(f"Error: {findings_dir} not found")
         sys.exit(1)
 
     data_dir = Path(__file__).parent / "data"
+    repos_dir = data_dir / "repos"
 
-    # Parse all category files
-    base_scenarios = []
-    for protocol_dir in sorted(categories_dir.iterdir()):
-        if not protocol_dir.is_dir():
-            continue
-        protocol_type = protocol_dir.name
-        for md_file in sorted(protocol_dir.glob("*.md")):
-            scenarios = parse_category_file(md_file, protocol_type)
-            base_scenarios.extend(scenarios)
+    if not repos_dir.exists():
+        print(f"Warning: {repos_dir} not found. Run fetch_repos.py first.")
+        print("Falling back to content-only extraction.\n")
 
+    # Process all findings
+    all_scenarios = []
+    source_counts = {"repo": 0, "snippet": 0, "skipped": 0}
+    total_findings = 0
+
+    for json_file in sorted(findings_dir.glob("*.json")):
+        protocol_type = json_file.stem
+        data = json.loads(json_file.read_text(encoding="utf-8"))
+        total_findings += len(data)
+
+        for finding in data:
+            scenarios = process_finding(finding, protocol_type, repos_dir)
+            if scenarios:
+                for s in scenarios:
+                    if s.get("source_file"):
+                        source_counts["repo"] += 1
+                    else:
+                        source_counts["snippet"] += 1
+                all_scenarios.extend(scenarios)
+            else:
+                source_counts["skipped"] += 1
+
+    print(f"Processed {total_findings} findings from {len(list(findings_dir.glob('*.json')))} protocol files")
+    print(f"Created {len(all_scenarios)} base scenarios:")
+    print(f"  From cloned repos: {source_counts['repo']}")
+    print(f"  From content snippets: {source_counts['snippet']}")
+    print(f"  Skipped (no code / low quality): {source_counts['skipped']}")
+
+    # Load optional clean / OOD scenarios
     clean_scenarios = _load_optional_scenarios(data_dir / "clean_scenarios.json", "clean")
     ood_scenarios = _load_optional_scenarios(data_dir / "ood_scenarios.json", "ood")
-    all_scenarios = base_scenarios + clean_scenarios + ood_scenarios
 
-    print(f"Parsed {len(base_scenarios)} scenarios from {categories_dir}")
+    # Clean scenarios join the main pool (train/eval split).
+    # OOD scenarios go into scenarios.json but get their own eval file only.
+    all_scenarios.extend(clean_scenarios)
+    all_scenarios.extend(ood_scenarios)
+
     if clean_scenarios:
         print(f"Loaded {len(clean_scenarios)} clean scenarios from data/clean_scenarios.json")
     if ood_scenarios:
@@ -380,9 +824,11 @@ def main():
     # Stats
     canonical_counts = defaultdict(int)
     difficulty_counts = defaultdict(int)
-    for s in base_scenarios + clean_scenarios:
+    severity_counts = defaultdict(int)
+    for s in all_scenarios:
         canonical_counts[s["canonical_category"]] += 1
         difficulty_counts[s["difficulty"]] += 1
+        severity_counts[s.get("ground_truth_severity", "UNKNOWN")] += 1
 
     print(f"\nCanonical categories ({len(canonical_counts)}):")
     for cat, count in sorted(canonical_counts.items(), key=lambda x: -x[1]):
@@ -392,11 +838,17 @@ def main():
     for diff, count in sorted(difficulty_counts.items()):
         print(f"  {diff}: {count}")
 
-    # Stratified train/eval split (80/20)
+    print(f"\nSeverity distribution:")
+    for sev, count in sorted(severity_counts.items()):
+        print(f"  {sev}: {count}")
+
+    # Stratified train/eval split (80/20) — excludes OOD scenarios
     random.seed(42)
+    ood_ids = {s["id"] for s in ood_scenarios}
     by_category = defaultdict(list)
-    for s in base_scenarios + clean_scenarios:
-        by_category[s["canonical_category"]].append(s)
+    for s in all_scenarios:
+        if s["id"] not in ood_ids:
+            by_category[s["canonical_category"]].append(s)
 
     train_ids = []
     eval_ids = []

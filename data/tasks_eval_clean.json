@@ -1,0 +1,266 @@
+[
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2023-07-pooltogether/Vault"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2023-10-nextgen/AuctionDemo"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2023-10-nextgen/NextGenCore"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2023-12-ethereumcreditguild/ERC20RebaseDistributor"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2023-12-ethereumcreditguild/ProfitManager"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-01-curves/Curves"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-01-curves/FeeSplitter"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-01-curves/Security"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-01-renft/Create"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-01-renft/Errors"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-01-renft/Guard"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-01-renft/RentalConstants"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-03-taiko/ERC20Airdrop2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-03-taiko/TimelockTokenPool"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-04-noya/BalancerFlashLoan"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-04-noya/BaseConnector"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-05-olas/GnosisDepositProcessorL1"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-05-olas/GnosisTargetDispenserL2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-06-size/AccountingLibrary"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-06-size/Liquidate"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-07-basin/Stable2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-07-basin/WellUpgradeable"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-07-benddao/IsolateLogic"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-07-benddao/ValidateLogic"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-07-benddao/VaultLogic"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-07-benddao/YieldAccount"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-07-benddao/YieldEthStakingEtherfi"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-07-benddao/YieldEthStakingLido"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-07-traitforge/EntityForging"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-07-traitforge/NukeFund"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-08-phi/Cred"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-08-phi/PhiFactory"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-08-wildcat/WildcatMarket"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2024-08-wildcat/WildcatMarketWithdrawals"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2025-01-liquid-ron/LiquidRon"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2025-04-forte/Float128"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2025-04-forte/Ln"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2025-04-virtuals/AgentNftV2"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2025-04-virtuals/ServiceNft"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2025-05-blackhole/GaugeFactoryCL"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2025-06-panoptic/PanopticVaultAccountant"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2026-01-tempo-feeamm/FeeAMM"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2026-01-tempo-mpp-streams/TempoStreamChannel"
+    }
+  },
+  {
+    "scenario": "detect-vuln",
+    "args": {
+      "scenario_id": "clean/evmbench/2026-01-tempo-stablecoin-dex/StablecoinDEX"
+    }
+  }
+]
