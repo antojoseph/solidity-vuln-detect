@@ -563,7 +563,12 @@ def map_to_canonical(tags: list[str], title: str, summary: str) -> tuple[str, st
 # ---------------------------------------------------------------------------
 
 def assign_difficulty(code: str) -> str:
-    """Assign difficulty based on code length."""
+    """Assign difficulty based on code length (fallback only).
+
+    This is used when no eval data is available. When eval results exist,
+    use `relabel_difficulty()` to assign empirical difficulty based on
+    actual model performance.
+    """
     lines = [l for l in code.split("\n") if l.strip()]
     n = len(lines)
     if n <= 10:
@@ -572,6 +577,102 @@ def assign_difficulty(code: str) -> str:
         return "medium"
     else:
         return "hard"
+
+
+# Per-category difficulty derived from Opus 4.6 + Sonnet 4.6 eval results.
+# Based on average reward tertiles across 965 evaluated scenarios:
+#   easy  >= 0.641 avg reward (both models find the vuln reliably)
+#   medium  [0.478, 0.641)   (partial detection)
+#   hard  <  0.478           (models consistently struggle)
+CATEGORY_DIFFICULTY: dict[str, str] = {
+    # easy — models score well
+    "denial-of-service": "easy",
+    "oracle-manipulation": "easy",
+    "access-control": "easy",
+    "precision-rounding": "easy",
+    "signature-replay": "easy",
+    "frontrunning-mev": "easy",
+    "fee-on-transfer": "easy",
+    # medium — partial detection
+    "slippage-protection": "medium",
+    "first-depositor-inflation": "medium",
+    "flash-loan": "medium",
+    "reentrancy": "medium",
+    "stale-state": "medium",
+    "integer-overflow": "medium",
+    "reward-accounting": "medium",
+    "input-validation": "medium",
+    "locked-funds": "medium",
+    "governance": "medium",
+    "incorrect-math": "medium",
+    "initialization": "medium",
+    "liquidation": "medium",
+    "unchecked-returns": "medium",
+    "erc4626-vault": "medium",
+    # hard — models consistently struggle
+    "no-vulnerability": "hard",
+    "business-logic": "hard",
+}
+
+
+def relabel_difficulty(scenarios: list[dict], results_dir: str = "results") -> int:
+    """Relabel scenario difficulty using eval results.
+
+    For scenarios with direct eval data, uses average reward across models.
+    For unevaluated scenarios, falls back to CATEGORY_DIFFICULTY mapping,
+    then to code-length heuristic.
+
+    Returns number of scenarios relabeled.
+    """
+    import glob
+    import statistics
+
+    # Load all result files and build per-scenario reward map
+    reward_map: dict[str, list[float]] = {}
+    for path in glob.glob(f"{results_dir}/*.json"):
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            # Skip small test runs
+            if data.get("total_tasks", 0) < 100:
+                continue
+            for trace in data.get("traces", []):
+                if trace.get("error") is None:
+                    sid = trace["scenario_id"]
+                    reward_map.setdefault(sid, []).append(trace["reward"])
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    if not reward_map:
+        return 0
+
+    # Compute per-scenario average reward
+    avg_rewards = {sid: statistics.mean(rs) for sid, rs in reward_map.items()}
+
+    # Tertile thresholds from evaluated scenarios
+    sorted_rewards = sorted(avg_rewards.values())
+    n = len(sorted_rewards)
+    t_hard = sorted_rewards[n // 3]
+    t_easy = sorted_rewards[2 * n // 3]
+
+    changed = 0
+    for s in scenarios:
+        avg = avg_rewards.get(s["id"])
+        if avg is not None:
+            # Direct eval data
+            new_diff = "hard" if avg < t_hard else ("easy" if avg >= t_easy else "medium")
+        elif s["canonical_category"] in CATEGORY_DIFFICULTY:
+            # Category-level fallback
+            new_diff = CATEGORY_DIFFICULTY[s["canonical_category"]]
+        else:
+            # Code-length fallback for unknown categories
+            new_diff = assign_difficulty(s.get("code_clean", ""))
+
+        if s.get("difficulty") != new_diff:
+            s["difficulty"] = new_diff
+            changed += 1
+
+    return changed
 
 
 # ---------------------------------------------------------------------------
