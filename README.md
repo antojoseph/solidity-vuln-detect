@@ -1,10 +1,10 @@
 # Solidity Vulnerability Detection — RL Environment
 
-A reinforcement learning environment for training AI agents to find security vulnerabilities in Solidity smart contracts. Built on [HUD](https://hud.ai) and real DeFi audit data.
+A reinforcement learning environment for training AI agents to find security vulnerabilities in Solidity smart contracts. Built on real DeFi audit data from 10,600+ findings.
 
 ## What This Is
 
-This project trains an LLM to act as a smart contract security auditor. The agent is presented with Solidity code from two sources — 10,600 DeFi audit findings and real-world vulnerable contracts from [evmbench](https://github.com/openai/frontier-evals) — and must:
+An LLM acts as a smart contract security auditor. It's presented with Solidity code from two sources — the protocol-vulnerabilities-index (10,600 DeFi audit findings) and real-world vulnerable contracts from evmbench — and must:
 
 1. Read the code
 2. Identify the vulnerability type (reentrancy, oracle manipulation, access control, etc.)
@@ -17,104 +17,69 @@ Performance is scored with a deterministic reward function (no LLM-as-judge), ma
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    HUD Framework                        │
-│                                                         │
-│  Environment        Scenario          Eval              │
-│  @env.tool()   →  @env.scenario()  →  hud.eval()       │
-│  (action space)    (prompt + reward)   (run + trace)    │
-│                                                         │
-│  Tools:            Flow:              Output:           │
-│  read_code()       setup state        reward (0-1)      │
-│  get_context()     yield prompt       subscores         │
-│  list_hints()      agent acts         trajectories      │
-│  submit_finding()  yield reward       → hud.ai traces   │
-└─────────────────────────────────────────────────────────┘
+│                    Environment (env.py)                   │
+│                                                          │
+│  Tools:              Scenario:          Scoring:         │
+│  read_code()         detect-vuln        deterministic    │
+│  get_context()       setup → prompt     no LLM judge     │
+│  list_hints()        agent acts         weighted subs    │
+│  submit_finding()    evaluate → reward  reward 0-1       │
+└────────────────────────┬─────────────────────────────────┘
                          │
-                         ▼
-              ┌──────────────────┐
-              │   RL Training    │
-              │   (HUD RFT)     │
-              │                  │
-              │  Trajectories →  │
-              │  GRPO training → │
-              │  Checkpoint →    │
-              │  Re-evaluate     │
-              └──────────────────┘
+              ┌──────────┴──────────┐
+              │                     │
+     ┌────────▼────────┐  ┌────────▼─────────┐
+     │   HUD Harness   │  │   Standalone     │
+     │  run_eval.py    │  │  run_eval_       │
+     │                 │  │  standalone.py   │
+     │  HUD credits    │  │  Anthropic API   │
+     │  hud.ai traces  │  │  Local JSON      │
+     │  ClaudeAgent    │  │  RL-ready traces │
+     └─────────────────┘  └──────────────────┘
 ```
+
+Two ways to run evals:
+- **`run_eval.py`** — uses HUD framework for tracing and orchestration (requires HUD credits)
+- **`run_eval_standalone.py`** — calls Anthropic API directly, saves RL-ready traces locally (no HUD credits)
 
 ## Project Structure
 
 ```
-├── env.py                     # Environment: 4 tools + detect-vuln scenario + scoring
-├── build_scenarios.py         # Data pipeline: findings → scenarios.json (loads clean + OOD)
-├── build_clean_scenarios.py   # Extract patched .sol from evmbench → clean_scenarios.json
-├── build_ood_scenarios.py     # Reverse-apply diffs + markdown → ood_scenarios.json
-├── fetch_repos.py             # Clone GitHub repos referenced in findings
-├── run_eval.py                # Eval harness: quick / eval / train / curriculum / checkpoint modes
-├── data/
-│   ├── scenarios.json         # 2,690 scenario entries (2,538 base + 44 clean + 108 OOD)
-│   ├── tasks_train.json       # 2,054 training tasks (80% split, base + clean)
-│   ├── tasks_eval.json        # 528 evaluation tasks (20% held-out, base + clean)
-│   ├── tasks_eval_clean.json  # 44 clean-only eval tasks (evmbench patched contracts)
-│   ├── tasks_eval_ood.json    # 108 OOD eval tasks (evmbench vulnerable code)
-│   ├── clean_scenarios.json   # 44 patched contracts from evmbench (no-vulnerability class)
-│   └── ood_scenarios.json     # 108 vulnerable scenarios from evmbench (real-world vulns)
-├── pyproject.toml             # Project config
-├── Dockerfile.hud             # Container for remote deployment
-├── hud.lock.yaml              # Build lock file (generated by hud build)
-└── uv.lock                    # Dependency lock
+├── env.py                       # Environment: 4 tools + detect-vuln scenario + scoring
+├── build_scenarios.py           # Data pipeline: findings → scenarios.json
+├── build_clean_scenarios.py     # Extract patched .sol from evmbench → clean_scenarios.json
+├── build_ood_scenarios.py       # Reverse-apply diffs + markdown → ood_scenarios.json
+├── fetch_repos.py               # Clone GitHub repos referenced in findings
+├── run_eval.py                  # Eval harness (HUD framework, requires credits)
+├── run_eval_standalone.py       # Eval harness (direct Anthropic API, no credits)
+├── data/                        # Generated by build scripts (gitignored)
+│   ├── scenarios.json           # ~4,900 scenario entries
+│   ├── tasks_train.json         # ~3,800 training tasks (80% split)
+│   ├── tasks_eval.json          # ~970 evaluation tasks (20% held-out)
+│   ├── tasks_eval_clean.json    # 44 clean-only eval tasks
+│   ├── tasks_eval_ood.json      # 108 OOD eval tasks
+│   ├── clean_scenarios.json     # 44 patched contracts (no-vulnerability class)
+│   └── ood_scenarios.json       # 108 vulnerable scenarios from evmbench
+├── results/                     # Eval output (gitignored)
+├── pyproject.toml
+├── Dockerfile.hud               # Container for HUD remote deployment
+└── .env                         # ANTHROPIC_API_KEY (gitignored)
 ```
+
+Data files are gitignored — regenerate them with the build scripts (see below).
 
 ## Data Sources
 
 ### 1. protocol-vulnerabilities-index (base scenarios)
 
-Uses [protocol-vulnerabilities-index](https://github.com/kadenzipfel/protocol-vulnerabilities-index) — an auto-generated index of ~10,600 DeFi security audit findings across 32 protocol types and 460 vulnerability categories. Produces 2,538 base vulnerability scenarios.
+[protocol-vulnerabilities-index](https://github.com/kadenzipfel/protocol-vulnerabilities-index) — an auto-generated index of ~10,600 DeFi security audit findings across 30+ protocol types and 460 vulnerability categories. Produces ~2,500 base vulnerability scenarios after quality filtering.
 
 ### 2. evmbench (clean + OOD scenarios)
 
-Uses patched and vulnerable Solidity contracts from [evmbench](https://github.com/openai/frontier-evals) audit benchmarks (22 real-world audit contests from 2023–2026). Produces:
+Patched and vulnerable Solidity contracts from [evmbench](https://github.com/openai/frontier-evals) audit benchmarks (22 real-world audit contests from 2023–2026):
+
 - **44 clean scenarios** — patched (fixed) contracts for the `no-vulnerability` class, included in train/eval splits
 - **108 OOD scenarios** — vulnerable code reconstructed by reverse-applying `.diff` files (40 full contracts with precise `bug_lines`) or extracted from findings markdown (68 code snippets), used for out-of-distribution evaluation only
-
-Each category file contains annotated vulnerable Solidity code:
-
-```solidity
-// VULNERABLE: Classic reentrancy - state updated after external call
-function deposit(uint256 amount) external returns (uint256 shares) {
-    uint256 balanceBefore = balance();
-    // BUG: External call before state update.
-    token.safeTransferFrom(msg.sender, address(this), amount);
-    shares = amount * totalSupply() / balanceBefore;
-    _mint(msg.sender, shares);
-}
-```
-
-The `// VULNERABLE:` and `// BUG:` annotations are **stripped** before showing code to the agent. Other comments are preserved as-is. Bug line numbers are extracted from the raw (annotated) source code.
-
-### Clean scenarios (no-vulnerability class)
-
-The `data/clean_scenarios.json` file contains 44 patched Solidity contracts from evmbench — real production code with vulnerabilities already fixed. These teach the model that sometimes code is safe.
-
-Generated by:
-```bash
-python build_clean_scenarios.py /path/to/evmbench/audits
-```
-
-When present, `build_scenarios.py` includes these entries with `canonical_category = "no-vulnerability"` in the train/eval split, and writes a dedicated `data/tasks_eval_clean.json` for clean-only evaluation via `--report-clean`.
-
-### OOD scenarios (out-of-distribution evaluation)
-
-The `data/ood_scenarios.json` file contains 108 vulnerable scenarios from evmbench, sourced two ways:
-- **40 diff-based** — full vulnerable contracts reconstructed by reverse-applying `.diff` files to patched code (32 have precise `bug_lines`)
-- **68 markdown-based** — code snippets extracted from vulnerability findings (no `bug_lines`, flat 0.5 line score)
-
-Generated by:
-```bash
-python build_ood_scenarios.py /path/to/evmbench/audits
-```
-
-These are excluded from train/eval splits. `build_scenarios.py` writes them to `data/tasks_eval_ood.json` for `--report-ood` evaluation.
 
 ## Setup
 
@@ -122,23 +87,24 @@ These are excluded from train/eval splits. `build_scenarios.py` writes them to `
 
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/) (Python package manager)
-- Docker (for `hud build`)
-- A [HUD](https://hud.ai) account and API key
 
 ### Installation
 
 ```bash
-# Install hud-python
-uv pip install hud-python
+uv pip install hud-python anthropic
+```
 
-# If you hit a typer version error ("Type not yet supported: str | None"),
-# upgrade typer:
-uv pip install "typer>=0.12"
+### API Keys
 
-# Initialize HUD in your project directory
+**For standalone eval** (no HUD credits):
+```bash
+# Add to .env in project root
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
+```
+
+**For HUD-based eval** (optional):
+```bash
 hud init
-
-# Set your API key
 hud set HUD_API_KEY=your-key-here
 ```
 
@@ -146,38 +112,47 @@ hud set HUD_API_KEY=your-key-here
 
 ```bash
 # Clone the vulnerability data
-git clone https://github.com/kadenzipfel/protocol-vulnerabilities-index.git /tmp/protocol-vulnerabilities-index
+git clone https://github.com/kadenzipfel/protocol-vulnerabilities-index.git /tmp/pvi
+
+# (Optional) Clone repos for full .sol file extraction
+python fetch_repos.py /tmp/pvi
 
 # (Optional) Generate clean + OOD scenarios from evmbench
 python build_clean_scenarios.py /path/to/evmbench/audits
 python build_ood_scenarios.py /path/to/evmbench/audits
 
-# Run the main data pipeline (picks up clean/OOD if present)
-python build_scenarios.py /tmp/protocol-vulnerabilities-index
+# Run the main data pipeline
+python build_scenarios.py /tmp/pvi
 ```
 
-This produces:
+Output:
 
-| Output | Count | Description |
-|--------|-------|-------------|
-| `data/scenarios.json` | 2,690 entries | All scenarios (base + clean + OOD) |
-| `data/tasks_train.json` | 2,054 tasks | 80% stratified training split (base + clean) |
-| `data/tasks_eval.json` | 528 tasks | 20% held-out evaluation split (base + clean) |
-| `data/tasks_eval_clean.json` | 44 tasks | Clean-only eval (evmbench patched contracts) |
-| `data/tasks_eval_ood.json` | 108 tasks | OOD eval (evmbench vulnerable code) |
-
-Scenarios span 37 canonical vulnerability categories including `no-vulnerability` (clean class).
+| File | Count | Description |
+|------|-------|-------------|
+| `data/scenarios.json` | ~4,900 | All scenarios (base + clean + OOD) |
+| `data/tasks_train.json` | ~3,800 | 80% stratified training split |
+| `data/tasks_eval.json` | ~970 | 20% held-out evaluation split |
+| `data/tasks_eval_clean.json` | 44 | Clean-only eval (patched contracts) |
+| `data/tasks_eval_ood.json` | 108 | OOD eval (evmbench vulnerable code) |
 
 ## Environment Design
 
-### Tools (Agent's Action Space)
+### Tools (Agent Action Space)
 
 | Tool | Purpose | Reward Impact |
 |------|---------|---------------|
-| `read_code()` | View the Solidity snippet (with line numbers) | Required |
+| `read_code()` | View the Solidity snippet with line numbers | Required |
 | `get_context()` | Get protocol type and preconditions | None |
 | `list_hints()` | Get detection heuristics | Caps max reward at 0.7 |
-| `submit_finding(vulnerability_type, explanation, severity, affected_lines, attack_path, prerequisites, impact)` | Submit analysis (single label or "no vulnerability") | Triggers scoring |
+| `submit_finding(...)` | Submit vulnerability analysis | Triggers scoring |
+
+`submit_finding` accepts: `vulnerability_type`, `explanation`, `severity`, `affected_lines`, `attack_path`, `prerequisites`, `impact`.
+
+### Vulnerability Categories (22)
+
+reentrancy, oracle-manipulation, access-control, flash-loan, first-depositor-inflation, precision-rounding, slippage-protection, fee-on-transfer, integer-overflow, denial-of-service, frontrunning-mev, governance, liquidation, input-validation, reward-accounting, unchecked-returns, initialization, erc4626-vault, locked-funds, stale-state, signature-replay, incorrect-math
+
+Plus `no-vulnerability` for the clean class.
 
 ### Scoring (Deterministic, No LLM)
 
@@ -185,195 +160,71 @@ Scenarios span 37 canonical vulnerability categories including `no-vulnerability
 |-----------|--------|--------|
 | `category_match` | 40% | Word overlap + keyword matching against canonical category |
 | `explanation_quality` | 25% | Keyword heuristics: code references, attack vectors, causal reasoning |
-| `severity_match` | 10% | Severity distance from expected severity per canonical category |
-| `line_accuracy` | 15% | F1 score between submitted and annotated bug lines (±1 tolerance) |
-| `exploitability` | 10% | Structured exploit path, prerequisites, and impact quality signals |
+| `line_accuracy` | 15% | F1 score between submitted and ground truth bug lines (±1 tolerance) |
+| `exploitability` | 10% | Quality of attack_path, prerequisites, impact fields |
+| `severity_match` | 10% | Distance from expected severity (exact=1.0, 1 off=0.6, 2 off=0.3) |
 
-**Final reward** = `(weighted_sum) × schema_penalty × hint_penalty`
+**Final reward** = `weighted_sum × schema_penalty × hint_penalty`
 
-Where `schema_penalty` applies a `0.9` multiplier when all structured fields (attack_path, prerequisites, impact) are empty, and a `0.85` multiplier for multi-label submissions (comma in vulnerability_type). These stack multiplicatively. `hint_penalty = 0.7` if `list_hints()` was called, else `1.0`.
-
-Structured fields (`attack_path`, `prerequisites`, `impact`) are scored for both completeness and quality — domain-relevant keywords (action verbs, sequencing language, impact terms) contribute to a quality multiplier beyond raw word count.
-
-Scoring is deterministic by design — same input always produces the same reward. This is critical for RL training where nondeterministic rewards create noisy gradients.
-
-### Scenario Flow
-
-```
-1. Setup:   Pick a scenario (random or by ID), reset episode state
-2. Prompt:  "You are a smart contract security auditor reviewing a {protocol} protocol..."
-3. Agent:   Calls read_code() → analyzes → calls submit_finding()
-4. Score:   Deterministic evaluation → EvaluationResult with SubScore breakdown
-5. Trace:   Full episode logged to hud.ai (tool calls, reward, metadata)
-```
+- Schema penalty: 0.9× for empty structured fields, 0.85× for multi-label submissions (stack multiplicatively)
+- Hint penalty: 0.7× if `list_hints()` was called
 
 ## Running Evaluations
 
-### Quick test (single episode)
+### Standalone (no HUD credits)
 
 ```bash
-uv run python run_eval.py --mode quick
-uv run python run_eval.py --mode quick --model gpt-4o
+# Quick smoke test (1 task)
+python run_eval_standalone.py --model claude-opus-4-6 --max-tasks 1
+
+# Full eval with both models
+python run_eval_standalone.py --models claude-opus-4-6 claude-sonnet-4-6
+
+# Control concurrency and task file
+python run_eval_standalone.py --model claude-opus-4-6 --concurrency 20
+python run_eval_standalone.py --model claude-opus-4-6 --task-file data/tasks_eval_ood.json
 ```
 
-### Full eval suite (compare models)
+Results are saved to `results/<model>_<timestamp>.json` with full message traces (RL-ready).
+
+### HUD-based (requires credits)
 
 ```bash
-# Run all 165 eval tasks across two models
-uv run python run_eval.py --mode eval --models gpt-4o-mini gpt-4o
-uv run python run_eval.py --mode eval --models gpt-4o-mini --report-clean
-uv run python run_eval.py --mode eval --models gpt-4o-mini --report-ood
+# Quick test
+python run_eval.py --mode quick
 
-# Or limit to first N tasks for faster iteration
-uv run python run_eval.py --mode eval --models gpt-4o-mini --max-tasks 20
-```
+# Full eval across models
+python run_eval.py --mode eval --models claude-opus-4-6 claude-sonnet-4-6
+python run_eval.py --mode eval --models claude-opus-4-6 --report-clean
+python run_eval.py --mode eval --models claude-opus-4-6 --report-ood
 
-### Training data collection
+# Training data collection
+python run_eval.py --mode train --group 3
 
-```bash
-# Run training split with 3 episodes per task (diverse trajectories)
-uv run python run_eval.py --mode train --group 3
-```
+# Curriculum training (easy → hard)
+python run_eval.py --mode curriculum --group 3
 
-### Curriculum training
-
-```bash
-uv run python run_eval.py --mode curriculum --group 3
-```
-
-### Checkpoint evaluation (after RL training)
-
-```bash
-uv run python run_eval.py --mode checkpoint --checkpoint my-org/vuln-detect-v1
+# Checkpoint evaluation
+python run_eval.py --mode checkpoint --checkpoint my-org/vuln-detect-v1
 ```
 
 ## Results
 
-### Baseline (before scoring fixes)
+Eval in progress — running full suite (972 tasks × 2 models) with Claude Opus 4.6 and Sonnet 4.6 via standalone harness.
 
-```
-330 episodes (165 tasks × 2 models: gpt-4o-mini, gpt-4o)
-Mean reward: 0.271 ± 0.117
-```
-
-Scoring was too strict — category matching required 2+ keyword hits, severity used a wrong proxy, 77% of scenarios had no line annotations.
-
-### After scoring improvements (round 1)
-
-```
-20 episodes (gpt-4o-mini)
-Mean reward: 0.493
-```
-
-Fixes applied:
-- Category matching: word-set containment + lowered keyword thresholds
-- Explanation scoring: increased per-hit coefficient (0.06 → 0.10), lowered length thresholds
-- Lines: flat 0.5 for unannotated scenarios (removes noise from 77% of data)
-
-### Scoring improvements (round 2)
-
-Further fixes applied (not yet re-evaluated):
-- Category: hard false-positive/false-negative rules for "no-vulnerability" class (0.0 for misclassification)
-- Severity: distance-based scoring against per-category expected severity (exact match = 1.0, one step off = 0.6, two steps = 0.3)
-- Exploitability: quality keyword multiplier on top of word-count baseline (action verbs, sequencing, impact terms)
-- Schema penalty: 0.9 multiplier for empty structured fields, 0.85 for multi-label submissions
-- Weight redistribution: category 45% → 40%, exploitability 5% → 10%
-
-## Deployment & Training
-
-### Build and push the environment
-
-```bash
-# Build Docker image (generates hud.lock.yaml)
-hud build
-
-# Push to HUD registry
-hud push --yes
-```
-
-### Launch RL training (GRPO via HUD RFT)
-
-```bash
-# First: fork a trainable model at https://api.hud.so/models
-# Then:
-hud rft run data/tasks_train.json --yes
-
-# Monitor training
-hud rft status <model-id>
-```
-
-### The training loop
-
-```
-1. Eval baseline    →  run_eval.py --mode eval
-2. Collect data     →  run_eval.py --mode train --group 3
-3. Train            →  hud rft run data/tasks_train.json
-4. Eval checkpoint  →  run_eval.py --mode checkpoint --checkpoint org/v1
-5. Compare          →  baseline vs checkpoint rewards
-6. Iterate          →  repeat from step 2 with the checkpoint as the new base
-```
+Early signal from quick tests: Opus scores 0.5–0.9 per episode depending on vulnerability category and code complexity.
 
 ## What's Left To Do
 
-1. **Fork a trainable model** on [hud.ai/models](https://api.hud.so/models) — required before `hud rft run` will work
-2. **Run the first training job** — `hud rft run data/tasks_train.json --yes`
-3. **Evaluate the checkpoint** — compare fine-tuned model against baseline
-4. **Iterate** — collect more trajectories with the improved model, retrain
+1. **Analyze eval results** — full Opus vs Sonnet comparison once current run completes
+2. **Improve difficulty labels** — current assignment is code-length-only (≤10 lines = easy, ≤25 = medium, >25 = hard), which puts 83% of tasks as "hard." Relabel empirically from eval reward distributions
+3. **Annotate bug_lines** — 22% of scenarios have no ground truth line numbers (scored as flat 0.5). Prioritize high-value categories
+4. **RL training loop** — use RL-ready traces from standalone eval for SFT/GRPO training
 5. **Optional improvements**:
    - Add LLM-as-judge for explanation scoring (better signal, but slower + nondeterministic)
    - Expand to multi-file contract analysis
    - Add remediation scoring (does the agent suggest a correct fix?)
-   - Map the remaining unmapped tail categories to canonical groups for better scoring coverage
    - Add more evmbench audits as they become available
-
-## Command Reference
-
-Every command executed during development, in order:
-
-```bash
-# 1. Install
-uv pip install hud-python
-uv pip install "typer>=0.12"        # Fix typer version incompatibility
-
-# 2. Initialize
-hud init                             # Creates env.py, pyproject.toml, Dockerfile.hud
-hud set HUD_API_KEY=<your-key>       # Save API key
-
-# 3. Data pipeline
-git clone https://github.com/kadenzipfel/protocol-vulnerabilities-index.git /tmp/protocol-vulnerabilities-index
-python build_scenarios.py /tmp/protocol-vulnerabilities-index
-# → data/scenarios.json (787 entries)
-# → data/tasks_train.json (622 tasks)
-# → data/tasks_eval.json (165 tasks)
-
-# 4. Quick test
-uv run python run_eval.py --mode quick
-
-# 5. Full baseline eval
-uv run python run_eval.py --mode eval --models gpt-4o-mini gpt-4o
-# Optional clean/ood reports (requires data/tasks_eval_clean.json or data/tasks_eval_ood.json)
-uv run python run_eval.py --mode eval --models gpt-4o-mini --report-clean
-uv run python run_eval.py --mode eval --models gpt-4o-mini --report-ood
-# → 330 episodes, mean reward 0.271 (before scoring fixes)
-
-# 6. After scoring fixes, re-eval
-uv run python run_eval.py --mode eval --models gpt-4o-mini --max-tasks 20
-# → 20 episodes, mean reward 0.493
-
-# 7. Build & push for remote training
-hud build                            # Build Docker image → hud.lock.yaml
-hud push --yes                       # Push to blocksek/hud:0.1.0
-
-# 8. Launch training (requires forked model)
-hud rft run data/tasks_train.json --yes
-hud rft status <model-id>
-
-# 9. Evaluate checkpoint (after training completes)
-uv run python run_eval.py --mode checkpoint --checkpoint org/vuln-detect-v1
-
-# 10. Curriculum training (easy → hard)
-uv run python run_eval.py --mode curriculum --group 3
-```
 
 ## License
 
