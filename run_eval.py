@@ -9,9 +9,9 @@ Modes:
 
 Examples:
     python run_eval.py --mode quick
-    python run_eval.py --mode eval --models gpt-4o-mini gpt-4o
-    python run_eval.py --mode eval --models gpt-4o-mini --report-clean
-    python run_eval.py --mode eval --models gpt-4o-mini --report-ood
+    python run_eval.py --mode eval --models claude-opus-4-6 claude-sonnet-4-6
+    python run_eval.py --mode eval --models claude-opus-4-6 --report-clean
+    python run_eval.py --mode eval --models claude-opus-4-6 --report-ood
     python run_eval.py --mode train --group 3
     python run_eval.py --mode curriculum --group 3
     python run_eval.py --mode checkpoint --checkpoint my-org/vuln-detect-v1
@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 import hud
-from hud.agents import OpenAIChatAgent
+from hud.agents.claude import ClaudeAgent
 from hud.datasets import load_tasks
 
 from env import env
@@ -34,14 +34,14 @@ from env import env
 # Mode 1: Quick test (single episode)
 # ---------------------------------------------------------------------------
 
-async def run_quick(model: str = "gpt-4o-mini"):
+async def run_quick(model: str = "claude-opus-4-6"):
     """Run a single random episode to verify the environment works."""
     print(f"=== Quick Test (model={model}) ===\n")
 
     task = env("detect-vuln")
 
     async with hud.eval(task) as ctx:
-        agent = OpenAIChatAgent.create(model=model)
+        agent = ClaudeAgent.create(model=model)
         await agent.run(ctx, max_steps=10)
 
     print(f"\nReward: {ctx.reward}")
@@ -64,11 +64,11 @@ async def _run_eval_on_tasks(task_path: str, models: list[str], max_tasks: int, 
 
     if len(models) > 1:
         async with hud.eval(bound, variants={"model": models}) as ctx:
-            agent = OpenAIChatAgent.create(model=ctx.variants["model"])
+            agent = ClaudeAgent.create(model=ctx.variants["model"])
             await agent.run(ctx, max_steps=10)
     else:
         async with hud.eval(bound) as ctx:
-            agent = OpenAIChatAgent.create(model=models[0])
+            agent = ClaudeAgent.create(model=models[0])
             await agent.run(ctx, max_steps=10)
 
     print("\nEval complete. Check hud.ai for full results.")
@@ -97,7 +97,7 @@ async def run_eval(models: list[str], max_tasks: int = 0, report_clean: bool = F
 # Mode 3: Training data collection
 # ---------------------------------------------------------------------------
 
-async def run_train(model: str = "gpt-4o-mini", group: int = 3, max_tasks: int = 0):
+async def run_train(model: str = "claude-opus-4-6", group: int = 3, max_tasks: int = 0):
     """Run the training set to collect trajectories for RL training."""
     print(f"=== Training Data Collection (model={model}, group={group}) ===\n")
 
@@ -112,7 +112,7 @@ async def run_train(model: str = "gpt-4o-mini", group: int = 3, max_tasks: int =
     print(f"Total episodes: {len(bound) * group}")
 
     async with hud.eval(bound, group=group) as ctx:
-        agent = OpenAIChatAgent.create(model=model)
+        agent = ClaudeAgent.create(model=model)
         await agent.run(ctx, max_steps=10)
 
     print("\nTraining data collected. Check hud.ai for trajectories.")
@@ -122,7 +122,7 @@ async def run_train(model: str = "gpt-4o-mini", group: int = 3, max_tasks: int =
 # Mode 4: Curriculum training
 # ---------------------------------------------------------------------------
 
-async def run_curriculum(model: str = "gpt-4o-mini", group: int = 3, max_tasks: int = 0):
+async def run_curriculum(model: str = "claude-opus-4-6", group: int = 3, max_tasks: int = 0):
     """Run curriculum training ordered by difficulty (easy → hard)."""
     print(f"=== Curriculum Training (model={model}, group={group}) ===\n")
 
@@ -145,7 +145,7 @@ async def run_curriculum(model: str = "gpt-4o-mini", group: int = 3, max_tasks: 
     print(f"Total episodes: {len(bound) * group}")
 
     async with hud.eval(bound, group=group) as ctx:
-        agent = OpenAIChatAgent.create(model=model)
+        agent = ClaudeAgent.create(model=model)
         await agent.run(ctx, max_steps=10)
 
     print("\nCurriculum data collected. Check hud.ai for trajectories.")
@@ -155,7 +155,7 @@ async def run_curriculum(model: str = "gpt-4o-mini", group: int = 3, max_tasks: 
 # Mode 5: Checkpoint evaluation
 # ---------------------------------------------------------------------------
 
-async def run_checkpoint(checkpoint: str, model: str = "gpt-4o-mini", max_tasks: int = 0):
+async def run_checkpoint(checkpoint: str, model: str = "claude-opus-4-6", max_tasks: int = 0):
     """Evaluate a fine-tuned checkpoint against the eval set."""
     print(f"=== Checkpoint Eval (checkpoint={checkpoint}, base={model}) ===\n")
 
@@ -168,7 +168,7 @@ async def run_checkpoint(checkpoint: str, model: str = "gpt-4o-mini", max_tasks:
     print(f"Tasks: {len(bound)}")
 
     async with hud.eval(bound) as ctx:
-        agent = OpenAIChatAgent.create(model=model, checkpoint=checkpoint)
+        agent = ClaudeAgent.create(model=model, checkpoint=checkpoint)
         await agent.run(ctx, max_steps=10)
 
     print("\nCheckpoint eval complete. Check hud.ai for results.")
@@ -185,8 +185,8 @@ def main():
         choices=["quick", "eval", "train", "curriculum", "checkpoint"],
         default="quick",
     )
-    parser.add_argument("--models", nargs="+", default=["gpt-4o-mini"])
-    parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--models", nargs="+", default=["claude-opus-4-6"])
+    parser.add_argument("--model", default="claude-opus-4-6")
     parser.add_argument("--group", type=int, default=3)
     parser.add_argument("--checkpoint", default="")
     parser.add_argument("--max-tasks", type=int, default=0, help="Limit tasks (0=all)")

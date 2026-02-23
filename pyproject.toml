@@ -2,7 +2,7 @@
 name = "solidity-vuln-detect"
 version = "0.1.0"
 requires-python = ">=3.10"
-dependencies = ["hud-python", "openai"]
+dependencies = ["hud-python", "openai", "anthropic"]
 
 [build-system]
 requires = ["hatchling"]
