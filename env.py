@@ -14,8 +14,13 @@ import re
 from pathlib import Path
 from typing import Any
 
-from hud import Environment
-from hud.tools.types import EvaluationResult, SubScore
+_HUD_AVAILABLE = False
+try:
+    from hud import Environment
+    from hud.tools.types import EvaluationResult, SubScore
+    _HUD_AVAILABLE = True
+except ImportError:
+    pass
 
 # ---------------------------------------------------------------------------
 # Data
@@ -176,225 +181,166 @@ _hints_used: bool = False
 _code_read: bool = False
 
 # ---------------------------------------------------------------------------
-# Environment
+# HUD Environment (optional — only registered when hud SDK is installed)
 # ---------------------------------------------------------------------------
 
-env = Environment("solidity-vuln-detect")
+if _HUD_AVAILABLE:
+    env = Environment("solidity-vuln-detect")
 
+    @env.tool()
+    def read_code() -> str:
+        """Read the Solidity code snippet under review."""
+        global _code_read
+        _code_read = True
+        code = _current.get("code_clean", "No code loaded.")
+        lines = code.split("\n")
+        return "\n".join(f"{i+1:3d} | {line}" for i, line in enumerate(lines))
 
-@env.tool()
-def read_code() -> str:
-    """Read the Solidity code snippet under review.
+    @env.tool()
+    def get_context() -> str:
+        """Get context about the protocol being audited."""
+        protocol_type = _current.get("protocol_type", "unknown")
+        protocol_name = _current.get("protocol_name", "")
+        preconditions = _current.get("preconditions", "No preconditions available.")
+        header = f"Protocol type: {protocol_type}"
+        if protocol_name:
+            header += f"\nProtocol: {protocol_name}"
+        return f"{header}\n\nPreconditions:\n{preconditions}"
 
-    Returns the smart contract code that may contain a security vulnerability.
-    Examine it carefully for common vulnerability patterns like reentrancy,
-    access control issues, oracle manipulation, etc."""
-    global _code_read
-    _code_read = True
-    code = _current.get("code_clean", "No code loaded.")
-    # Add line numbers for reference
-    lines = code.split("\n")
-    numbered = "\n".join(f"{i+1:3d} | {line}" for i, line in enumerate(lines))
-    return numbered
-
-
-@env.tool()
-def get_context() -> str:
-    """Get context about the protocol being audited.
-
-    Returns the protocol type and preconditions that describe when this
-    vulnerability pattern applies. No reward penalty for using this tool."""
-    protocol_type = _current.get("protocol_type", "unknown")
-    protocol_name = _current.get("protocol_name", "")
-    preconditions = _current.get("preconditions", "No preconditions available.")
-    header = f"Protocol type: {protocol_type}"
-    if protocol_name:
-        header += f"\nProtocol: {protocol_name}"
-    return f"{header}\n\nPreconditions:\n{preconditions}"
-
-
-@env.tool()
-def list_hints() -> str:
-    """Request detection heuristics for analyzing this code.
-
-    Returns a list of things to look for when auditing this code.
-    WARNING: Using hints reduces your maximum reward from 1.0 to 0.7."""
-    global _hints_used
-    _hints_used = True
-    hints = _current.get("hints", [])
-    if not hints:
-        return "No hints available for this snippet."
-    return "Detection heuristics:\n" + "\n".join(
-        f"  {i+1}. {h}" for i, h in enumerate(hints)
-    )
-
-
-@env.tool()
-def submit_finding(
-    vulnerability_type: str,
-    explanation: str,
-    severity: str = "HIGH",
-    affected_lines: str = "",
-    attack_path: str = "",
-    prerequisites: str = "",
-    impact: str = "",
-) -> str:
-    """Submit your vulnerability analysis.
-
-    Args:
-        vulnerability_type: Category of vulnerability (e.g. 'reentrancy',
-            'oracle manipulation', 'access control', 'flash loan',
-            'precision loss', 'denial of service', 'frontrunning', etc.)
-        explanation: Detailed explanation of WHY the code is vulnerable,
-            including what an attacker could exploit and how.
-        severity: Impact level — 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', or 'NONE' for safe code.
-        affected_lines: Comma-separated line numbers where the root cause is
-            (e.g. '5,6,7'). Use the line numbers from read_code().
-        attack_path: Step-by-step outline of how the exploit is executed.
-        prerequisites: Preconditions required for the exploit to work.
-        impact: Expected impact if exploited (e.g. fund loss, stolen assets).
-    """
-    parsed_lines = []
-    if affected_lines.strip():
-        for part in affected_lines.split(","):
-            part = part.strip()
-            if part.isdigit():
-                parsed_lines.append(int(part))
-
-    _current["_submission"] = {
-        "vulnerability_type": vulnerability_type,
-        "explanation": explanation,
-        "severity": severity.upper(),
-        "affected_lines": parsed_lines,
-        "attack_path": attack_path,
-        "prerequisites": prerequisites,
-        "impact": impact,
-    }
-    return f"Finding submitted: {vulnerability_type} ({severity}). Awaiting evaluation."
-
-
-# ---------------------------------------------------------------------------
-# Scenario
-# ---------------------------------------------------------------------------
-
-@env.scenario("detect-vuln")
-async def detect_vulnerability(scenario_id: str = "") -> Any:
-    """Agent must identify the vulnerability in a Solidity code snippet."""
-    global _current, _hints_used, _code_read
-
-    scenarios = _load_scenarios()
-
-    if scenario_id:
-        matches = [s for s in scenarios if s["id"] == scenario_id]
-        if not matches:
-            raise ValueError(f"Unknown scenario_id: {scenario_id}")
-        _current = matches[0].copy()
-    else:
-        _current = random.choice(scenarios).copy()
-
-    _hints_used = False
-    _code_read = False
-    _current["_submission"] = None
-
-    protocol_type = _current["protocol_type"]
-
-    # First yield: prompt
-    answer = yield (
-        f"You are a smart contract security auditor reviewing a {protocol_type} protocol.\n\n"
-        f"Instructions:\n"
-        f"1. Use read_code() to examine the Solidity code snippet\n"
-        f"2. Optionally use get_context() for protocol details\n"
-        f"3. Optionally use list_hints() for detection guidance (reduces max reward)\n"
-        f"4. Use submit_finding() with your analysis when ready\n\n"
-        f"Your goal: identify the specific vulnerability type, explain the attack vector, "
-        f"and pinpoint the affected lines of code."
-    )
-
-    # Second yield: evaluation
-    submission = _current.get("_submission")
-    if not submission:
-        yield EvaluationResult(
-            reward=0.0,
-            done=True,
-            content="No finding was submitted.",
-            info={"scenario_id": _current["id"]},
+    @env.tool()
+    def list_hints() -> str:
+        """Request detection heuristics. WARNING: reduces max reward to 0.7."""
+        global _hints_used
+        _hints_used = True
+        hints = _current.get("hints", [])
+        if not hints:
+            return "No hints available for this snippet."
+        return "Detection heuristics:\n" + "\n".join(
+            f"  {i+1}. {h}" for i, h in enumerate(hints)
         )
-        return
 
-    # Score components
-    cat_score = _score_category(
-        submission["vulnerability_type"],
-        _current["category_slug"],
-        _current["canonical_category"],
-    )
-    expl_score = _score_explanation(submission["explanation"], _current)
-    sev_score = _score_severity(submission["severity"], _current)
-    line_score = _score_lines(submission["affected_lines"], _current.get("bug_lines", []))
-    exploit_score = _score_exploitability(
-        submission.get("attack_path", ""),
-        submission.get("prerequisites", ""),
-        submission.get("impact", ""),
-        ground_canonical=_current["canonical_category"],
-    )
+    @env.tool()
+    def submit_finding(
+        vulnerability_type: str,
+        explanation: str,
+        severity: str = "HIGH",
+        affected_lines: str = "",
+        attack_path: str = "",
+        prerequisites: str = "",
+        impact: str = "",
+    ) -> str:
+        """Submit your vulnerability analysis."""
+        parsed_lines = []
+        if affected_lines.strip():
+            for part in affected_lines.split(","):
+                part = part.strip()
+                if part.isdigit():
+                    parsed_lines.append(int(part))
+        _current["_submission"] = {
+            "vulnerability_type": vulnerability_type,
+            "explanation": explanation,
+            "severity": severity.upper(),
+            "affected_lines": parsed_lines,
+            "attack_path": attack_path,
+            "prerequisites": prerequisites,
+            "impact": impact,
+        }
+        return f"Finding submitted: {vulnerability_type} ({severity}). Awaiting evaluation."
 
-    # Schema penalty
-    schema_penalty = 1.0
-    if _current["canonical_category"] != "no-vulnerability":
-        if all(not submission.get(f, "").strip() for f in ("attack_path", "prerequisites", "impact")):
-            schema_penalty *= 0.9
-    if "," in submission["vulnerability_type"]:
-        schema_penalty *= 0.85
-
-    # Weighted combination
-    raw = (
-        0.40 * cat_score
-        + 0.25 * expl_score
-        + 0.10 * sev_score
-        + 0.15 * line_score
-        + 0.10 * exploit_score
-    )
-    hint_penalty = 0.7 if _hints_used else 1.0
-    final = round(raw * schema_penalty * hint_penalty, 4)
-
-    yield EvaluationResult(
-        reward=final,
-        done=True,
-        content=(
-            f"Submitted: {submission['vulnerability_type']} "
-            f"(expected: {_current['canonical_category']})\n"
-            f"Scores — category: {cat_score:.2f}, explanation: {expl_score:.2f}, "
-            f"severity: {sev_score:.2f}, lines: {line_score:.2f}, "
-            f"exploitability: {exploit_score:.2f}\n"
-            f"Schema penalty: {schema_penalty}, Hint penalty: {hint_penalty}, "
-            f"Final reward: {final}"
-        ),
-        subscores=[
-            SubScore(name="category_match", weight=0.40, value=cat_score),
-            SubScore(name="explanation_quality", weight=0.25, value=expl_score),
-            SubScore(name="severity_match", weight=0.10, value=sev_score),
-            SubScore(name="line_accuracy", weight=0.15, value=line_score),
-            SubScore(name="exploitability", weight=0.10, value=exploit_score),
-        ],
-        info={
-            "scenario_id": _current["id"],
-            "canonical_category": _current["canonical_category"],
-            "difficulty": _current["difficulty"],
-            "hints_used": _hints_used,
-            "code_read": _code_read,
-            "schema_penalty": schema_penalty,
-            "submitted_type": submission["vulnerability_type"],
-            "submitted_severity": submission["severity"],
-            "submitted_lines": submission["affected_lines"],
-            "submitted_attack_path": submission.get("attack_path", ""),
-            "submitted_prerequisites": submission.get("prerequisites", ""),
-            "submitted_impact": submission.get("impact", ""),
-            "ground_truth_lines": _current.get("bug_lines", []),
-        },
-    )
+    @env.scenario("detect-vuln")
+    async def detect_vulnerability(scenario_id: str = "") -> Any:
+        """Agent must identify the vulnerability in a Solidity code snippet."""
+        global _current, _hints_used, _code_read
+        scenarios = _load_scenarios()
+        if scenario_id:
+            matches = [s for s in scenarios if s["id"] == scenario_id]
+            if not matches:
+                raise ValueError(f"Unknown scenario_id: {scenario_id}")
+            _current = matches[0].copy()
+        else:
+            _current = random.choice(scenarios).copy()
+        _hints_used = False
+        _code_read = False
+        _current["_submission"] = None
+        protocol_type = _current["protocol_type"]
+        answer = yield (
+            f"You are a smart contract security auditor reviewing a {protocol_type} protocol.\n\n"
+            f"Instructions:\n"
+            f"1. Use read_code() to examine the Solidity code snippet\n"
+            f"2. Optionally use get_context() for protocol details\n"
+            f"3. Optionally use list_hints() for detection guidance (reduces max reward)\n"
+            f"4. Use submit_finding() with your analysis when ready\n\n"
+            f"Your goal: identify the specific vulnerability type, explain the attack vector, "
+            f"and pinpoint the affected lines of code."
+        )
+        submission = _current.get("_submission")
+        if not submission:
+            yield EvaluationResult(
+                reward=0.0, done=True,
+                content="No finding was submitted.",
+                info={"scenario_id": _current["id"]},
+            )
+            return
+        cat_score = _score_category(
+            submission["vulnerability_type"],
+            _current["category_slug"],
+            _current["canonical_category"],
+        )
+        expl_score = _score_explanation(submission["explanation"], _current)
+        sev_score = _score_severity(submission["severity"], _current)
+        line_score = _score_lines(submission["affected_lines"], _current.get("bug_lines", []))
+        exploit_score = _score_exploitability(
+            submission.get("attack_path", ""),
+            submission.get("prerequisites", ""),
+            submission.get("impact", ""),
+            ground_canonical=_current["canonical_category"],
+        )
+        schema_penalty = 1.0
+        if _current["canonical_category"] != "no-vulnerability":
+            if all(not submission.get(f, "").strip() for f in ("attack_path", "prerequisites", "impact")):
+                schema_penalty *= 0.9
+        if "," in submission["vulnerability_type"]:
+            schema_penalty *= 0.85
+        raw = (
+            0.40 * cat_score + 0.25 * expl_score + 0.10 * sev_score
+            + 0.15 * line_score + 0.10 * exploit_score
+        )
+        hint_penalty = 0.7 if _hints_used else 1.0
+        final = round(raw * schema_penalty * hint_penalty, 4)
+        yield EvaluationResult(
+            reward=final, done=True,
+            content=(
+                f"Submitted: {submission['vulnerability_type']} "
+                f"(expected: {_current['canonical_category']})\n"
+                f"Scores — cat: {cat_score:.2f}, expl: {expl_score:.2f}, "
+                f"sev: {sev_score:.2f}, lines: {line_score:.2f}, "
+                f"exploit: {exploit_score:.2f}\n"
+                f"Final reward: {final}"
+            ),
+            subscores=[
+                SubScore(name="category_match", weight=0.40, value=cat_score),
+                SubScore(name="explanation_quality", weight=0.25, value=expl_score),
+                SubScore(name="severity_match", weight=0.10, value=sev_score),
+                SubScore(name="line_accuracy", weight=0.15, value=line_score),
+                SubScore(name="exploitability", weight=0.10, value=exploit_score),
+            ],
+            info={
+                "scenario_id": _current["id"],
+                "canonical_category": _current["canonical_category"],
+                "difficulty": _current["difficulty"],
+                "hints_used": _hints_used,
+                "code_read": _code_read,
+                "schema_penalty": schema_penalty,
+                "submitted_type": submission["vulnerability_type"],
+                "submitted_severity": submission["severity"],
+                "submitted_lines": submission["affected_lines"],
+                "ground_truth_lines": _current.get("bug_lines", []),
+            },
+        )
 
 
 # ---------------------------------------------------------------------------
-# Scoring functions (deterministic, no LLM)
+# Scoring functions (deterministic, no LLM — always available)
 # ---------------------------------------------------------------------------
 
 def _to_words(text: str) -> set[str]:
@@ -456,7 +402,7 @@ def _score_category(submitted: str, ground_slug: str, ground_canonical: str) -> 
         if hits >= 2:
             return 0.9
         if hits >= 1:
-            return 0.6
+            return 0.8
 
     # --- Jaccard similarity on words ---
     if canonical_words:
@@ -464,7 +410,7 @@ def _score_category(submitted: str, ground_slug: str, ground_canonical: str) -> 
         if jaccard >= 0.5:
             return 0.8
         if jaccard > 0:
-            return 0.4
+            return 0.5
 
     # --- Fallback: any significant canonical word in submission ---
     for w in canonical_words:
@@ -475,6 +421,13 @@ def _score_category(submitted: str, ground_slug: str, ground_canonical: str) -> 
     for w in slug_words:
         if len(w) > 4 and w in sub:
             return 0.3
+
+    # --- Cross-category: submission matches a real category (wrong one) ---
+    for other_cat, other_kws in CATEGORY_KEYWORDS.items():
+        if other_cat == ground_canonical or other_cat == "no-vulnerability":
+            continue
+        if sum(1 for kw in other_kws if kw.lower() in sub) >= 2:
+            return 0.3  # Found a real vuln category, just wrong one
 
     return 0.0
 

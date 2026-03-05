@@ -1,0 +1,97 @@
+# Solidity Vuln Detection — Training Docker Compose
+#
+# Usage:
+#   docker compose -f docker-compose.train.yml run --rm smoke   # Quick test (no GPU)
+#   docker compose -f docker-compose.train.yml run --rm sft     # Stage 1: SFT
+#   docker compose -f docker-compose.train.yml run --rm merge   # Merge LoRA
+#   docker compose -f docker-compose.train.yml run --rm grpo    # Stage 2: Online RL
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+  shm_size: "64g"
+
+x-volumes: &volumes
+  volumes:
+    - ./data:/workspace/hud/data:ro
+    - ./outputs:/workspace/outputs
+    - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
+
+services:
+  # Smoke test — verify env, data, scoring (no GPU needed)
+  smoke:
+    build:
+      context: .
+      dockerfile: Dockerfile.train
+      target: base
+    volumes:
+      - ./data:/workspace/hud/data:ro
+    command: python3 test_smoke.py
+
+  # Stage 1: SFT on Claude traces
+  sft:
+    build:
+      context: .
+      dockerfile: Dockerfile.train
+      target: sft
+    <<: [*gpu, *volumes]
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - WANDB_API_KEY=${WANDB_API_KEY:-}
+    command: >
+      python3 run_sft.py
+        --model ${MODEL:-Qwen/Qwen3-4B}
+        --data /workspace/hud/data/${SFT_DATA:-slime_sft_traces.jsonl}
+        --output /workspace/outputs/sft
+        --config /workspace/hud/training.yaml
+
+  # Merge LoRA adapter into base model
+  merge:
+    build:
+      context: .
+      dockerfile: Dockerfile.train
+      target: sft
+    <<: [*gpu, *volumes]
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+    command: >
+      python3 -c "
+      from peft import PeftModel
+      from transformers import AutoModelForCausalLM, AutoTokenizer
+      import torch, sys
+
+      base = '${MODEL:-Qwen/Qwen3-4B}'
+      adapter = '${ADAPTER:-/workspace/outputs/sft}'
+      output = '/workspace/outputs/sft-merged'
+
+      print(f'Merging {adapter} into {base}...')
+      tokenizer = AutoTokenizer.from_pretrained(base, trust_remote_code=True)
+      model = AutoModelForCausalLM.from_pretrained(base, torch_dtype=torch.bfloat16, trust_remote_code=True)
+      model = PeftModel.from_pretrained(model, adapter)
+      model = model.merge_and_unload()
+      model.save_pretrained(output)
+      tokenizer.save_pretrained(output)
+      print(f'Merged model saved to {output}')
+      "
+
+  # Stage 2: Online RL via SkyRL
+  grpo:
+    build:
+      context: .
+      dockerfile: Dockerfile.train
+      target: grpo
+    <<: [*gpu, *volumes]
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+      - WANDB_API_KEY=${WANDB_API_KEY:-}
+    command: >
+      python3 run_online_rl.py
+        --model ${GRPO_MODEL:-/workspace/outputs/sft-merged}
+        --data /workspace/hud/data/${GRPO_DATA:-skyrl_prompts.jsonl}
+        --output /workspace/outputs/grpo
+        --config /workspace/hud/training.yaml

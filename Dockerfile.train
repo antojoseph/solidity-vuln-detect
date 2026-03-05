@@ -1,0 +1,108 @@
+# Solidity Vulnerability Detection — Training Dockerfile
+#
+# Multi-stage build:
+#   - base:  Core env + scoring + skyrl-gym
+#   - sft:   TRL-based SFT training
+#   - grpo:  SkyRL Online RL (RLOO/DAPO)
+#
+# Build:
+#   docker build -t solidity-train:sft  --target sft  -f Dockerfile.train .
+#   docker build -t solidity-train:grpo --target grpo -f Dockerfile.train .
+#
+# Quick test (no GPU needed):
+#   docker build -t solidity-train:base --target base -f Dockerfile.train .
+#   docker run --rm solidity-train:base python3 test_smoke.py
+
+# ============================================================
+# Base stage
+# ============================================================
+FROM nvcr.io/nvidia/pytorch:25.11-py3 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    HF_HUB_ENABLE_HF_TRANSFER=1
+
+WORKDIR /workspace/hud
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl ca-certificates jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python deps (base)
+RUN pip install --no-cache-dir \
+    skyrl-gym \
+    anthropic \
+    openai \
+    python-dotenv \
+    pyyaml \
+    jinja2
+
+# Copy TrajGym source (for formatters, parsing, training CLI)
+COPY open-trajectory-gym /workspace/open-trajectory-gym
+RUN pip install --no-cache-dir -e /workspace/open-trajectory-gym 2>/dev/null || \
+    echo "TrajGym base install (partial deps ok)"
+
+ENV PYTHONPATH=/workspace/open-trajectory-gym/src:/workspace/hud:$PYTHONPATH
+
+# Copy project source
+COPY env.py run_eval_standalone.py skyrl_env.py \
+     prepare_skyrl_data.py training.yaml \
+     slime_generate.py convert_traces_for_sft.py \
+     run_sft.py \
+     /workspace/hud/
+
+# Copy smoke test
+COPY test_smoke.py /workspace/hud/
+
+# Data is volume-mounted at runtime
+# /workspace/hud/data/scenarios.json
+# /workspace/hud/data/skyrl_prompts.jsonl
+# /workspace/hud/data/slime_sft_traces.jsonl
+
+CMD ["python3", "test_smoke.py"]
+
+# ============================================================
+# SFT stage — TRL + transformers>=5.2 for Qwen3.5
+# ============================================================
+FROM base AS sft
+
+RUN pip install --no-cache-dir \
+    "trl>=0.16.0" \
+    "peft>=0.15.0" \
+    "accelerate>=1.4.0" \
+    "datasets>=3.0.0" \
+    "bitsandbytes>=0.45.0" \
+    "transformers>=5.2.0" \
+    "huggingface-hub>=1.4" \
+    "hf_transfer"
+
+CMD ["python3", "-c", "from trl import SFTTrainer; print('SFT ready')"]
+
+# ============================================================
+# GRPO stage — SkyRL + Ray + vLLM
+# ============================================================
+FROM base AS grpo
+
+# SkyRL from patched fork
+RUN pip install --no-cache-dir \
+    "git+https://github.com/westonbrown/SkyRL.git@open-ctf/v0.3.1-patched#subdirectory=skyrl-train" \
+    "ray[default]>=2.40.0" \
+    "colorama" \
+    "omegaconf" \
+    "hydra-core" \
+    "transformers>=5.2.0" \
+    "scipy>=1.16.0" \
+    "peft>=0.15.0" \
+    "accelerate>=1.4.0"
+
+# Install vLLM (nightly for Qwen3.5 support)
+RUN pip install --no-cache-dir "vllm>=0.16.0" || \
+    pip install --no-cache-dir vllm --pre || \
+    echo "WARNING: vLLM install failed — install manually"
+
+# Apply TrajGym's runtime patches
+RUN bash /workspace/open-trajectory-gym/docker/patches/apply_all_patches.sh || \
+    echo "WARNING: Some patches failed — check logs"
+
+CMD ["python3", "-c", "import skyrl_gym; import vllm; print('GRPO ready')"]

@@ -81,25 +81,30 @@ def _build_system_prompt(scenario_info: dict) -> str:
     )
 
 
-def _convert_anthropic_to_qwen_messages(
+def _convert_anthropic_to_structured_messages(
     messages: list[dict],
     scenario_info: dict,
 ) -> list[dict]:
-    """Convert Anthropic-format messages to Qwen3 chat messages with tool calls.
+    """Convert Anthropic-format messages to OpenAI-structured format.
 
-    Anthropic format:
-      - {"role": "user", "content": "Begin your audit."}
+    Uses proper tool_calls fields and role=tool responses so that
+    any tokenizer's apply_chat_template formats them natively
+    (e.g., Qwen3.5 → qwen3_coder XML, Qwen3 → Hermes JSON).
+
+    Anthropic input:
       - {"role": "assistant", "content": [{"type": "text", ...}, {"type": "tool_use", ...}]}
       - {"role": "user", "content": [{"type": "tool_result", "tool_use_id": ..., "content": ...}]}
 
-    Qwen3 format:
-      - {"role": "system", "content": "..."}
-      - {"role": "user", "content": "Begin your audit."}
-      - {"role": "assistant", "content": "<tool_call>...</tool_call>"} (or text)
-      - {"role": "user", "content": "<tool_response>...</tool_response>"}
+    OpenAI-structured output:
+      - {"role": "assistant", "content": "...", "tool_calls": [{"id": ..., "type": "function", ...}]}
+      - {"role": "tool", "tool_call_id": "...", "content": "..."}
     """
     system_prompt = _build_system_prompt(scenario_info)
-    qwen_messages = [{"role": "system", "content": system_prompt}]
+    out_messages = [{"role": "system", "content": system_prompt}]
+
+    # Map tool_use_id → tool_call for linking results
+    tool_use_map: dict[str, dict] = {}
+    call_counter = 0
 
     for msg in messages:
         role = msg["role"]
@@ -107,48 +112,115 @@ def _convert_anthropic_to_qwen_messages(
 
         if role == "user":
             if isinstance(content, str):
-                qwen_messages.append({"role": "user", "content": content})
+                out_messages.append({"role": "user", "content": content})
             elif isinstance(content, list):
-                # Tool results
-                parts = []
                 for block in content:
                     if block.get("type") == "tool_result":
+                        tool_use_id = block.get("tool_use_id", "")
                         tool_content = block.get("content", "")
-                        parts.append(
-                            f'<tool_response>\n{json.dumps({"result": tool_content})}\n</tool_response>'
-                        )
+                        out_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_use_id,
+                            "content": tool_content if isinstance(tool_content, str) else json.dumps(tool_content),
+                        })
                     else:
                         text = block.get("text", block.get("content", ""))
                         if text:
-                            parts.append(text)
-                qwen_messages.append({"role": "user", "content": "\n".join(parts)})
+                            out_messages.append({"role": "user", "content": text})
 
         elif role == "assistant":
             if isinstance(content, str):
-                qwen_messages.append({"role": "assistant", "content": content})
+                out_messages.append({"role": "assistant", "content": content})
             elif isinstance(content, list):
-                parts = []
+                text_parts = []
+                tool_calls = []
                 for block in content:
                     if block.get("type") == "text":
                         text = block.get("text", "")
                         if text.strip():
-                            parts.append(text)
+                            text_parts.append(text)
                     elif block.get("type") == "tool_use":
+                        call_id = block.get("id", f"call_{call_counter}")
+                        call_counter += 1
                         name = block["name"]
                         arguments = block.get("input", {})
-                        tool_call = json.dumps(
-                            {"name": name, "arguments": arguments},
-                            ensure_ascii=False,
-                        )
-                        parts.append(f"<tool_call>\n{tool_call}\n</tool_call>")
-                qwen_messages.append({"role": "assistant", "content": "\n".join(parts)})
+                        tool_calls.append({
+                            "id": call_id,
+                            "type": "function",
+                            "function": {
+                                "name": name,
+                                "arguments": arguments,  # dict, not JSON string
+                            },
+                        })
+                        tool_use_map[call_id] = tool_calls[-1]
 
-    return qwen_messages
+                assistant_msg = {"role": "assistant", "content": "\n".join(text_parts)}
+                if tool_calls:
+                    assistant_msg["tool_calls"] = tool_calls
+                out_messages.append(assistant_msg)
+
+    return out_messages
+
+
+def _is_anthropic_format(messages: list[dict]) -> bool:
+    """Check if messages use Anthropic format (content is list of blocks)."""
+    for m in messages:
+        if isinstance(m.get("content"), list):
+            return True
+    return False
+
+
+def _is_structured_format(messages: list[dict]) -> bool:
+    """Check if messages already have structured tool_calls fields."""
+    for m in messages:
+        if "tool_calls" in m or m.get("role") == "tool":
+            return True
+    return False
+
+
+def _passthrough_structured_messages(
+    messages: list[dict],
+    scenario_info: dict,
+) -> list[dict]:
+    """Pass through already-structured messages, ensuring system prompt.
+
+    Also converts tool_calls arguments from JSON strings to dicts
+    (Qwen3.5's chat template requires dict for .items() iteration).
+    """
+    system_prompt = _build_system_prompt(scenario_info)
+    out = []
+    has_system = False
+    for m in messages:
+        if m.get("role") == "system":
+            has_system = True
+            out.append({"role": "system", "content": system_prompt})
+        elif "tool_calls" in m:
+            # Fix arguments: JSON string → dict
+            fixed_calls = []
+            for tc in m["tool_calls"]:
+                tc = dict(tc)
+                func = dict(tc.get("function", {}))
+                args = func.get("arguments", {})
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except json.JSONDecodeError:
+                        args = {}
+                func["arguments"] = args
+                tc["function"] = func
+                fixed_calls.append(tc)
+            out.append({**m, "tool_calls": fixed_calls})
+        else:
+            out.append(m)
+    if not has_system:
+        out.insert(0, {"role": "system", "content": system_prompt})
+    return out
 
 
 def convert_trace(trace: dict, min_reward: float) -> dict | None:
-    """Convert a single trace to SLIME SFT format.
+    """Convert a single trace to structured SFT format.
 
+    Handles both Anthropic-format (Claude) and OpenAI-format (Qwen/vLLM) traces.
     Returns None if the trace doesn't meet quality criteria.
     """
     reward = trace.get("reward", 0.0)
@@ -159,18 +231,28 @@ def convert_trace(trace: dict, min_reward: float) -> dict | None:
     if not messages:
         return None
 
-    # Skip traces with errors
     if trace.get("error"):
         return None
 
     info = trace.get("info", {})
     scenario_id = trace.get("scenario_id", info.get("scenario_id", ""))
 
-    # Convert to Qwen3 format
-    qwen_messages = _convert_anthropic_to_qwen_messages(messages, info)
+    # Auto-detect format and convert
+    if _is_anthropic_format(messages):
+        structured = _convert_anthropic_to_structured_messages(messages, info)
+    elif _is_structured_format(messages):
+        structured = _passthrough_structured_messages(messages, info)
+    else:
+        # Plain text messages (no tool calls) — skip
+        return None
+
+    # Validate: must have at least one tool_calls message
+    has_tool_call = any("tool_calls" in m for m in structured)
+    if not has_tool_call:
+        return None
 
     return {
-        "messages": qwen_messages,
+        "messages": structured,
         "tools": TOOLS_OPENAI,
         "reward": reward,
         "metadata": {

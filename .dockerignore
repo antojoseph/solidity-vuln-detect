@@ -11,9 +11,6 @@ dist/
 build/
 node_modules/
 .DS_Store
-data/repos/
-data/*.json
-data/*.jsonl
+.git/
+data/
 results/
-open-trajectory-gym/
-outputs/

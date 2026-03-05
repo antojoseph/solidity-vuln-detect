@@ -1,0 +1,20 @@
+services:
+  eval:
+    build: .
+    network_mode: host
+    volumes:
+      - ./data:/app/data:ro
+      - ./results:/app/results
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-empty}
+    # Default: full agentic eval against Qwen
+    # Override command via: docker compose run eval --max-tasks 5
+    command:
+      - --base-url
+      - http://localhost:30000/v1
+      - --model
+      - Qwen/Qwen3.5-397B-A17B-FP8
+      - --concurrency
+      - "4"
+      - --max-steps
+      - "20"

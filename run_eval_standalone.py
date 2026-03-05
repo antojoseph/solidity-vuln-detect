@@ -1,13 +1,15 @@
 """Standalone evaluation harness — no HUD credits required.
 
-Calls the Anthropic API directly and runs local scoring from env.py.
+Calls the Anthropic or OpenAI-compatible API and runs local scoring from env.py.
 Saves full message traces (RL-ready) and per-model result summaries.
 
 Examples:
+    # Anthropic models (default)
     python run_eval_standalone.py --model claude-opus-4-6 --max-tasks 1
     python run_eval_standalone.py --models claude-opus-4-6 claude-sonnet-4-6
-    python run_eval_standalone.py --model claude-opus-4-6 --concurrency 20
-    python run_eval_standalone.py --model claude-opus-4-6 --task-file data/tasks_eval_ood.json
+
+    # OpenAI-compatible endpoint (e.g. local Qwen via vLLM/SGLang)
+    python run_eval_standalone.py --base-url http://localhost:30000/v1 --model qwen3-32b --max-tasks 1
 """
 
 import argparse
@@ -23,6 +25,7 @@ from pathlib import Path
 
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 # Import scoring functions from env.py (all pure functions, no globals)
 from env import (
@@ -36,6 +39,25 @@ from env import (
 )
 
 load_dotenv()
+
+
+# ---------------------------------------------------------------------------
+# Shared system prompt builder
+# ---------------------------------------------------------------------------
+
+def build_system_prompt(protocol_type: str) -> str:
+    """Build the auditor system prompt for a scenario."""
+    return (
+        f"You are a smart contract security auditor reviewing a {protocol_type} protocol.\n\n"
+        f"Instructions:\n"
+        f"1. Use read_code() to examine the Solidity code snippet\n"
+        f"2. Optionally use get_context() for protocol details\n"
+        f"3. Optionally use list_hints() for detection guidance (reduces max reward)\n"
+        f"4. Use submit_finding() with your analysis when ready\n\n"
+        f"Your goal: identify the specific vulnerability type, explain the attack vector, "
+        f"and pinpoint the affected lines of code."
+    )
+
 
 # ---------------------------------------------------------------------------
 # Anthropic tool definitions (mirror env.py function signatures)
@@ -76,8 +98,12 @@ TOOL_DEFINITIONS = [
             "Submit your vulnerability analysis.\n\n"
             "Args:\n"
             "    vulnerability_type: Category of vulnerability (e.g. 'reentrancy', "
-            "'oracle manipulation', 'access control', 'flash loan', "
-            "'precision loss', 'denial of service', 'frontrunning', etc.)\n"
+            "'oracle-manipulation', 'access-control', 'flash-loan', "
+            "'precision-rounding', 'denial-of-service', 'frontrunning-mev', "
+            "'integer-overflow', 'input-validation', 'reward-accounting', "
+            "'slippage-protection', 'initialization', 'locked-funds', "
+            "'governance', 'liquidation', 'stale-state', 'signature-replay', "
+            "'incorrect-math', 'no-vulnerability', etc.)\n"
             "    explanation: Detailed explanation of WHY the code is vulnerable, "
             "including what an attacker could exploit and how.\n"
             "    severity: Impact level — 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', "
@@ -128,6 +154,19 @@ TOOL_DEFINITIONS = [
             "required": ["vulnerability_type", "explanation"],
         },
     },
+]
+
+# OpenAI / OpenAI-compatible tool definitions
+TOOL_DEFINITIONS_OPENAI = [
+    {
+        "type": "function",
+        "function": {
+            "name": t["name"],
+            "description": t["description"],
+            "parameters": t["input_schema"],
+        },
+    }
+    for t in TOOL_DEFINITIONS
 ]
 
 
@@ -292,18 +331,7 @@ async def run_episode(
 ) -> dict:
     """Run a single eval episode. Returns trace dict."""
     ep = Episode(scenario)
-    protocol_type = scenario["protocol_type"]
-
-    system_prompt = (
-        f"You are a smart contract security auditor reviewing a {protocol_type} protocol.\n\n"
-        f"Instructions:\n"
-        f"1. Use read_code() to examine the Solidity code snippet\n"
-        f"2. Optionally use get_context() for protocol details\n"
-        f"3. Optionally use list_hints() for detection guidance (reduces max reward)\n"
-        f"4. Use submit_finding() with your analysis when ready\n\n"
-        f"Your goal: identify the specific vulnerability type, explain the attack vector, "
-        f"and pinpoint the affected lines of code."
-    )
+    system_prompt = build_system_prompt(scenario["protocol_type"])
 
     messages = []
     steps = 0
@@ -383,6 +411,174 @@ async def run_episode(
 
 
 # ---------------------------------------------------------------------------
+# Qwen native tool-call parsing (for servers without tool_call_parser)
+# ---------------------------------------------------------------------------
+
+def _parse_qwen_tool_calls(content: str) -> list[dict]:
+    """Parse tool calls from Qwen's native text format.
+
+    Supports both formats:
+      Qwen3.5 XML:  <tool_call><function=name><parameter=k>v</parameter></function></tool_call>
+      Qwen3 JSON:   <tool_call>{"name": "...", "arguments": {...}}</tool_call>
+    """
+    calls = []
+    for m in re.finditer(r"<tool_call>(.*?)</tool_call>", content, re.DOTALL):
+        block = m.group(1).strip()
+
+        # Try Qwen3.5 XML format: <function=name><parameter=k>v</parameter>...</function>
+        func_match = re.search(r"<function=(\w+)>(.*?)</function>", block, re.DOTALL)
+        if func_match:
+            name = func_match.group(1)
+            params_block = func_match.group(2)
+            args = {}
+            for pm in re.finditer(
+                r"<parameter=(\w+)>\s*(.*?)\s*</parameter>", params_block, re.DOTALL
+            ):
+                args[pm.group(1)] = pm.group(2).strip()
+            calls.append({"name": name, "arguments": args})
+            continue
+
+        # Try JSON format: {"name": "...", "arguments": {...}}
+        try:
+            data = json.loads(block)
+            calls.append({
+                "name": data.get("name", ""),
+                "arguments": data.get("arguments", {}),
+            })
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    return calls
+
+
+# ---------------------------------------------------------------------------
+# Agent loop — OpenAI-compatible endpoint (vLLM, SGLang, etc.)
+# ---------------------------------------------------------------------------
+
+async def run_episode_openai(
+    client: AsyncOpenAI,
+    model: str,
+    scenario: dict,
+    max_steps: int = 10,
+) -> dict:
+    """Run a single eval episode via an OpenAI-compatible API.
+
+    Handles both structured tool_calls (server-parsed) and Qwen's native
+    text-based tool calling format (parsed from content).
+    """
+    ep = Episode(scenario)
+    system_prompt = build_system_prompt(scenario["protocol_type"])
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": "Begin your audit."},
+    ]
+    steps = 0
+    error = None
+
+    try:
+        for step in range(max_steps):
+            steps = step + 1
+
+            response = await client.chat.completions.create(
+                model=model,
+                max_tokens=16384,
+                temperature=0.7,
+                top_p=0.8,
+                presence_penalty=1.5,
+                messages=messages,
+                tools=TOOL_DEFINITIONS_OPENAI,
+                extra_body={
+                    "top_k": 20,
+                    "chat_template_kwargs": {"enable_thinking": False},
+                },
+            )
+            choice = response.choices[0]
+            msg = choice.message
+            content = msg.content or ""
+            reasoning = getattr(msg, "reasoning_content", None) or ""
+
+            # --- Path A: structured tool_calls from the API ---
+            if msg.tool_calls:
+                assistant_msg = {"role": "assistant", "content": content}
+                if reasoning:
+                    assistant_msg["reasoning"] = reasoning
+                assistant_msg["tool_calls"] = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in msg.tool_calls
+                ]
+                messages.append(assistant_msg)
+
+                submitted = False
+                for tc in msg.tool_calls:
+                    try:
+                        args = json.loads(tc.function.arguments)
+                    except json.JSONDecodeError:
+                        args = {}
+                    result_text = ep.call_tool(tc.function.name, args)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result_text,
+                    })
+                    if tc.function.name == "submit_finding":
+                        submitted = True
+
+                if submitted:
+                    break
+                continue
+
+            # --- Path B: parse tool calls from content text (Qwen native) ---
+            tool_calls = _parse_qwen_tool_calls(content)
+            assistant_msg = {"role": "assistant", "content": content}
+            if reasoning:
+                assistant_msg["reasoning"] = reasoning
+            messages.append(assistant_msg)
+
+            if not tool_calls:
+                break  # No tool calls, agent is done
+
+            submitted = False
+            tool_results = []
+            for tc in tool_calls:
+                result_text = ep.call_tool(tc["name"], tc["arguments"])
+                tool_results.append(
+                    f'{{"name": "{tc["name"]}", "content": {json.dumps(result_text)}}}'
+                )
+                if tc["name"] == "submit_finding":
+                    submitted = True
+
+            # Feed tool results back as a user message in Qwen's expected format
+            results_text = "\n".join(
+                f"<tool_response>\n{r}\n</tool_response>" for r in tool_results
+            )
+            messages.append({"role": "user", "content": results_text})
+
+            if submitted:
+                break
+
+    except Exception as e:
+        error = str(e)
+
+    # Score
+    result = ep.evaluate()
+    result["messages"] = messages
+    result["steps"] = steps
+    result["error"] = error
+    result["model"] = model
+    result["scenario_id"] = scenario["id"]
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Batch runner
 # ---------------------------------------------------------------------------
 
@@ -392,14 +588,36 @@ async def run_eval(
     max_tasks: int = 0,
     concurrency: int = 10,
     max_steps: int = 10,
+    base_url: str | None = None,
+    resume_from: str | None = None,
 ):
     """Run evaluation across models and tasks."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        print("Error: ANTHROPIC_API_KEY not set. Add it to .env or export it.")
-        sys.exit(1)
+    use_openai = base_url is not None
 
-    client = AsyncAnthropic(api_key=api_key)
+    if use_openai:
+        # OpenAI-compatible endpoint (vLLM, SGLang, Ollama, etc.)
+        api_key = os.environ.get("OPENAI_API_KEY", "empty")
+        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        episode_fn = run_episode_openai
+        print(f"Provider: OpenAI-compatible ({base_url})")
+    else:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            print("Error: ANTHROPIC_API_KEY not set. Add it to .env or export it.")
+            sys.exit(1)
+        client = AsyncAnthropic(api_key=api_key)
+        episode_fn = run_episode
+        print(f"Provider: Anthropic")
+
+    # Load previous results for resume
+    prev_results: dict[str, dict] = {}
+    if resume_from:
+        with open(resume_from) as f:
+            prev_data = json.load(f)
+        for trace in prev_data.get("traces", []):
+            if trace.get("error") is None:
+                prev_results[trace["scenario_id"]] = trace
+        print(f"Resuming: {len(prev_results)} completed scenarios from {resume_from}")
 
     # Load tasks
     with open(task_file) as f:
@@ -428,24 +646,40 @@ async def run_eval(
 
     semaphore = asyncio.Semaphore(concurrency)
     completed = 0
-    total = len(task_scenarios) * len(models)
-
-    async def run_with_semaphore(model: str, scenario: dict) -> dict:
-        nonlocal completed
-        async with semaphore:
-            result = await run_episode(client, model, scenario, max_steps=max_steps)
-            completed += 1
-            reward = result["reward"]
-            sid = result["scenario_id"]
-            status = f"E {result['error'][:40]}" if result["error"] else f"R={reward:.3f}"
-            print(f"  [{completed}/{total}] {model} | {sid} | {status}")
-            return result
 
     for model in models:
-        print(f"=== {model} ===\n")
+        # Split into cached (from resume) and pending scenarios
+        cached_results = []
+        pending_scenarios = []
+        for s in task_scenarios:
+            if s["id"] in prev_results:
+                cached_results.append(prev_results[s["id"]])
+            else:
+                pending_scenarios.append(s)
 
-        coros = [run_with_semaphore(model, s) for s in task_scenarios]
-        results = await asyncio.gather(*coros)
+        total = len(pending_scenarios)
+        completed = 0
+
+        print(f"=== {model} ===")
+        if cached_results:
+            print(f"  Reusing {len(cached_results)} results from previous run")
+        print(f"  Running {total} remaining episodes\n")
+
+        async def run_with_semaphore(model: str, scenario: dict) -> dict:
+            nonlocal completed
+            async with semaphore:
+                result = await episode_fn(client, model, scenario, max_steps=max_steps)
+                completed += 1
+                reward = result["reward"]
+                sid = result["scenario_id"]
+                status = f"E {result['error'][:40]}" if result["error"] else f"R={reward:.3f}"
+                print(f"  [{completed}/{total}] {model} | {sid} | {status}")
+                return result
+
+        coros = [run_with_semaphore(model, s) for s in pending_scenarios]
+        new_results = await asyncio.gather(*coros)
+
+        results = cached_results + list(new_results)
 
         # Aggregate
         rewards = [r["reward"] for r in results if r["error"] is None]
@@ -455,8 +689,10 @@ async def run_eval(
         by_difficulty = defaultdict(list)
         for r in results:
             if r["error"] is None:
-                by_category[r["info"]["canonical_category"]].append(r["reward"])
-                by_difficulty[r["info"]["difficulty"]].append(r["reward"])
+                cat = r["info"].get("canonical_category", "unknown")
+                diff = r["info"].get("difficulty", "unknown")
+                by_category[cat].append(r["reward"])
+                by_difficulty[diff].append(r["reward"])
 
         summary = {
             "model": model,
@@ -503,10 +739,14 @@ def main():
     parser = argparse.ArgumentParser(description="Standalone eval harness (no HUD)")
     parser.add_argument("--models", nargs="+", default=None)
     parser.add_argument("--model", default="claude-opus-4-6")
+    parser.add_argument("--base-url", default=None,
+                        help="OpenAI-compatible base URL (e.g. http://localhost:30000/v1)")
     parser.add_argument("--task-file", default="data/tasks_eval.json")
     parser.add_argument("--max-tasks", type=int, default=0, help="Limit tasks (0=all)")
-    parser.add_argument("--concurrency", type=int, default=10)
+    parser.add_argument("--concurrency", type=int, default=4)
     parser.add_argument("--max-steps", type=int, default=10)
+    parser.add_argument("--resume", default=None,
+                        help="Resume from a previous results file, skipping completed scenarios")
     args = parser.parse_args()
 
     models = args.models or [args.model]
@@ -516,6 +756,8 @@ def main():
         max_tasks=args.max_tasks,
         concurrency=args.concurrency,
         max_steps=args.max_steps,
+        base_url=args.base_url,
+        resume_from=args.resume,
     ))
 
 
