@@ -1,824 +1,214 @@
-# Solidity Vulnerability Detection — RL Environment
+# Solidity Vulnerability Detection — RL Training Pipeline
 
-A reinforcement learning environment for training AI agents to find security vulnerabilities in Solidity smart contracts. Built on real DeFi audit data from 10,600+ findings.
+Train open-source LLMs to find security vulnerabilities in Solidity smart contracts using SFT + Online RL. Built on real DeFi audit data from 10,600+ findings.
 
-## What This Is
+## Results
 
-An LLM acts as a smart contract security auditor. It's presented with Solidity code from two sources — the protocol-vulnerabilities-index (10,600 DeFi audit findings) and real-world vulnerable contracts from evmbench — and must:
+Qwen3.5-9B on 972 eval tasks:
 
-1. Read the code
-2. Identify the vulnerability type (reentrancy, oracle manipulation, access control, etc.)
-3. Explain the attack vector
-4. Pinpoint the affected lines
+| Model | Mean Reward | Median | Improvement |
+|-------|-------------|--------|-------------|
+| Qwen3.5-9B base | 0.437 | 0.385 | — |
+| Qwen3.5-9B + SFT | **0.534** | **0.470** | **+22%** |
+| Qwen3.5-397B (reference) | 0.503 | — | — |
 
-Performance is scored with a deterministic reward function (no LLM-as-judge), making it suitable for RL training loops.
+SFT on 528 expert traces (Claude + Qwen3.5-397B) brings a 9B model to match or exceed a 44x larger model.
 
-## Architecture
+**Per-difficulty breakdown:**
+
+| Difficulty | Base | SFT | Lift |
+|-----------|------|-----|------|
+| Easy (310) | 0.522 | 0.624 | +20% |
+| Medium (316) | 0.444 | 0.532 | +20% |
+| Hard (310) | 0.375 | 0.443 | +18% |
+
+**Top SFT improvements by category:** oracle-manipulation (+0.18), stale-state (+0.16), locked-funds (+0.15), access-control (+0.14), slippage-protection (+0.12).
+
+## How It Works
+
+An LLM audits Solidity code using 4 tools, scored by a deterministic 5-signal reward function:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Environment (env.py)                   │
-│                                                          │
-│  Tools:              Scenario:          Scoring:         │
-│  read_code()         detect-vuln        deterministic    │
-│  get_context()       setup → prompt     no LLM judge     │
-│  list_hints()        agent acts         weighted subs    │
-│  submit_finding()    evaluate → reward  reward 0-1       │
-└────────────────────────┬─────────────────────────────────┘
-                         │
-              ┌──────────┴──────────┐
-              │                     │
-     ┌────────▼────────┐  ┌────────▼─────────┐
-     │   HUD Harness   │  │   Standalone     │
-     │  run_eval.py    │  │  run_eval_       │
-     │                 │  │  standalone.py   │
-     │  HUD credits    │  │  Anthropic API   │
-     │  hud.ai traces  │  │  Local JSON      │
-     │  ClaudeAgent    │  │  RL-ready traces │
-     └─────────────────┘  └──────────────────┘
+Agent                          Environment (env.py)
+  │                                  │
+  ├── read_code() ──────────────────▶│ Returns numbered Solidity snippet
+  ├── get_context() ────────────────▶│ Protocol type + preconditions
+  ├── list_hints() ─────────────────▶│ Detection heuristics (caps reward at 0.7)
+  └── submit_finding(type, explain,  │
+        severity, lines, ...) ──────▶│ Triggers deterministic scoring
+                                     │
+                                     ▼
+                              Reward (0.0 - 1.0)
+                              = 0.40 × category_match
+                              + 0.25 × explanation_quality
+                              + 0.15 × line_accuracy
+                              + 0.10 × severity_match
+                              + 0.10 × exploitability
 ```
 
-Two ways to run evals:
-- **`run_eval.py`** — uses HUD framework for tracing and orchestration (requires HUD credits)
-- **`run_eval_standalone.py`** — calls Anthropic API directly, saves RL-ready traces locally (no HUD credits)
+22 vulnerability categories: reentrancy, oracle-manipulation, access-control, flash-loan, precision-rounding, slippage-protection, denial-of-service, integer-overflow, liquidation, and more.
+
+## Training Pipeline
+
+```
+Expert traces (Claude + Qwen3.5-397B)
+       │
+       ▼
+  convert_traces_for_sft.py → structured tool_calls format
+       │
+       ▼
+  ┌─────────────────────┐     ┌──────────────────────┐
+  │ Stage 1: SFT        │     │ Stage 2: Online RL   │
+  │ run_sft.py           │────▶│ run_online_rl.py     │
+  │ TRL + LoRA r=128     │     │ RLOO (6 samples/prompt)│
+  │ 528 traces, 3 epochs │     │ 3,834 scenarios       │
+  │ ~47 min on 1xH100    │     │ 8xH100 data-parallel  │
+  └─────────────────────┘     └──────────────────────┘
+       │                              │
+       ▼                              ▼
+  Eval: run_eval_standalone.py   W&B monitoring
+  (972 tasks, deterministic)     wandb_monitor.py
+```
 
 ## Project Structure
 
 ```
-├── env.py                       # Environment: 4 tools + detect-vuln scenario + scoring
+├── env.py                       # Environment: 4 tools + 5-signal deterministic scorer
+├── skyrl_env.py                 # SkyRL BaseTextEnv adapter (bridges to Episode class)
+├── run_eval_standalone.py       # Eval harness (Anthropic + OpenAI-compatible APIs)
+├── run_eval_agentic.py          # Agentic eval (full repo exploration, 186 repos)
+├── run_sft.py                   # SFT training (TRL SFTTrainer + LoRA)
+├── run_online_rl.py             # Online RL rollouts (RLOO via vLLM API)
+├── convert_traces_for_sft.py    # Convert Claude/Qwen traces → structured SFT format
+├── prepare_skyrl_data.py        # Convert tasks → SkyRL prompt JSONL
+├── training.yaml                # Training config (model, LoRA, SFT, RL params)
+├── wandb_monitor.py             # Real-time W&B dashboard for RL monitoring
+├── test_smoke.py                # 29-check validation suite
 ├── build_scenarios.py           # Data pipeline: findings → scenarios.json
-├── build_clean_scenarios.py     # Extract patched .sol from evmbench → clean_scenarios.json
-├── build_ood_scenarios.py       # Reverse-apply diffs + markdown → ood_scenarios.json
-├── fetch_repos.py               # Clone GitHub repos referenced in findings
-├── run_eval.py                  # Eval harness (HUD framework, requires credits)
-├── run_eval_standalone.py       # Eval harness (direct Anthropic API, no credits)
-├── slime_generate.py            # SLIME custom generate: agent-env loop via SGLang
-├── slime_reward.py              # SLIME custom reward: passthrough from generate()
-├── prepare_slime_data.py        # Convert task files → SLIME prompt JSONL
-├── convert_traces_for_sft.py    # Convert Claude traces → SLIME SFT format
-├── data/                        # Generated by build scripts (gitignored)
-│   ├── scenarios.json           # ~4,900 scenario entries
-│   ├── tasks_train.json         # ~3,800 training tasks (80% split)
-│   ├── tasks_eval.json          # ~970 evaluation tasks (20% held-out)
-│   ├── tasks_eval_clean.json    # 44 clean-only eval tasks
-│   ├── tasks_eval_ood.json      # 108 OOD eval tasks
-│   ├── clean_scenarios.json     # 44 patched contracts (no-vulnerability class)
-│   ├── ood_scenarios.json       # 108 vulnerable scenarios from evmbench
-│   ├── slime_prompts.jsonl      # SLIME prompt dataset (generated by prepare_slime_data.py)
-│   └── slime_sft_traces.jsonl   # SFT training data (generated by convert_traces_for_sft.py)
-├── results/                     # Eval output (gitignored)
-├── pyproject.toml
-├── Dockerfile.hud               # Container for HUD remote deployment
-└── .env                         # ANTHROPIC_API_KEY (gitignored)
+├── Dockerfile.train             # Multi-stage NGC build (base/sft/grpo)
+├── docker-compose.train.yml     # Docker services (smoke/sft/merge/grpo)
+├── run_all.sh                   # Full pipeline launcher (survives SSH drops)
+├── run_online_rl.sh             # RL-only launcher (detached containers)
+├── data/                        # Generated datasets (gitignored)
+│   ├── scenarios.json           # ~4,900 scenarios
+│   ├── tasks_train.json         # 3,834 training tasks
+│   ├── tasks_eval.json          # 972 eval tasks
+│   ├── skyrl_prompts.jsonl      # SkyRL RL prompts
+│   └── sft_traces_structured.jsonl  # SFT training data (structured tool_calls)
+└── open-trajectory-gym/         # TrajGym framework (gitignored submodule)
 ```
 
-Data files are gitignored — regenerate them with the build scripts (see below).
-
-## Data Sources
-
-### 1. protocol-vulnerabilities-index (base scenarios)
-
-[protocol-vulnerabilities-index](https://github.com/kadenzipfel/protocol-vulnerabilities-index) — an auto-generated index of ~10,600 DeFi security audit findings across 30+ protocol types and 460 vulnerability categories. Produces ~2,500 base vulnerability scenarios after quality filtering.
-
-### 2. evmbench (clean + OOD scenarios)
-
-Patched and vulnerable Solidity contracts from [evmbench](https://github.com/openai/frontier-evals) audit benchmarks (22 real-world audit contests from 2023–2026):
-
-- **44 clean scenarios** — patched (fixed) contracts for the `no-vulnerability` class, included in train/eval splits
-- **108 OOD scenarios** — vulnerable code reconstructed by reverse-applying `.diff` files (40 full contracts with precise `bug_lines`) or extracted from findings markdown (68 code snippets), used for out-of-distribution evaluation only
-
-## Setup
+## Quick Start
 
 ### Prerequisites
 
 - Python 3.10+
-- [uv](https://docs.astral.sh/uv/) (Python package manager)
+- GPU with 80GB+ VRAM (H100 recommended) for training
+- Docker + NVIDIA Container Toolkit for containerized runs
+- vLLM nightly (`vllm/vllm-openai:nightly`) for Qwen3.5 inference
 
-### Installation
-
-```bash
-uv pip install hud-python anthropic
-```
-
-### API Keys
-
-**For standalone eval** (no HUD credits):
-```bash
-# Add to .env in project root
-echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
-```
-
-**For HUD-based eval** (optional):
-```bash
-hud init
-hud set HUD_API_KEY=your-key-here
-```
-
-### Generate the dataset
+### 1. Generate Data
 
 ```bash
-# Clone the vulnerability data
+# Clone vulnerability data
 git clone https://github.com/kadenzipfel/protocol-vulnerabilities-index.git /tmp/pvi
 
-# (Optional) Clone repos for full .sol file extraction
-python fetch_repos.py /tmp/pvi
-
-# (Optional) Generate clean + OOD scenarios from evmbench
-python build_clean_scenarios.py /path/to/evmbench/audits
-python build_ood_scenarios.py /path/to/evmbench/audits
-
-# Run the main data pipeline
+# Build scenarios
 python build_scenarios.py /tmp/pvi
+
+# Generate SkyRL prompts
+python prepare_skyrl_data.py
+
+# Convert expert traces for SFT (requires eval results in results/)
+python convert_traces_for_sft.py --min-reward 0.7
 ```
 
-Output:
+### 2. Run Eval (Standalone)
 
-| File | Count | Description |
-|------|-------|-------------|
-| `data/scenarios.json` | ~4,900 | All scenarios (base + clean + OOD) |
-| `data/tasks_train.json` | ~3,800 | 80% stratified training split |
-| `data/tasks_eval.json` | ~970 | 20% held-out evaluation split |
-| `data/tasks_eval_clean.json` | 44 | Clean-only eval (patched contracts) |
-| `data/tasks_eval_ood.json` | 108 | OOD eval (evmbench vulnerable code) |
+```bash
+# Against Anthropic API
+python run_eval_standalone.py --model claude-sonnet-4-6 --max-tasks 50
 
-## Environment Design
+# Against local vLLM server (Qwen3.5, OpenAI-compatible)
+python run_eval_standalone.py --base-url http://localhost:30000/v1 \
+  --model Qwen/Qwen3.5-9B --concurrency 8
+```
 
-### Tools (Agent Action Space)
+### 3. Run SFT
 
-| Tool | Purpose | Reward Impact |
-|------|---------|---------------|
-| `read_code()` | View the Solidity snippet with line numbers | Required |
-| `get_context()` | Get protocol type and preconditions | None |
-| `list_hints()` | Get detection heuristics | Caps max reward at 0.7 |
-| `submit_finding(...)` | Submit vulnerability analysis | Triggers scoring |
+```bash
+# In Docker (recommended — handles all deps)
+docker build -t solidity-train:sft --target sft -f Dockerfile.train .
 
-`submit_finding` accepts: `vulnerability_type`, `explanation`, `severity`, `affected_lines`, `attack_path`, `prerequisites`, `impact`.
+docker run --rm --gpus device=0 --ipc=host --ulimit memlock=-1 \
+  -v ./data:/workspace/hud/data:ro \
+  -v ./outputs:/workspace/outputs \
+  -v ~/.cache/huggingface:/root/.cache/huggingface \
+  solidity-train:sft \
+  python3 run_sft.py \
+    --model Qwen/Qwen3.5-9B \
+    --data /workspace/hud/data/sft_traces_structured.jsonl \
+    --output /workspace/outputs/sft-9b
+```
 
-### Vulnerability Categories (22)
+### 4. Run Online RL
 
-reentrancy, oracle-manipulation, access-control, flash-loan, first-depositor-inflation, precision-rounding, slippage-protection, fee-on-transfer, integer-overflow, denial-of-service, frontrunning-mev, governance, liquidation, input-validation, reward-accounting, unchecked-returns, initialization, erc4626-vault, locked-funds, stale-state, signature-replay, incorrect-math
+```bash
+# Full pipeline (vLLM + RL + agentic eval, all detached)
+bash run_all.sh
 
-Plus `no-vulnerability` for the clean class.
+# Monitor
+docker logs -f solidity-rl
+tail -f ~/outputs/rl/progress.log
 
-### Scoring (Deterministic, No LLM)
+# W&B dashboard
+docker run -d --name solidity-wandb \
+  -e WANDB_API_KEY=$WANDB_API_KEY \
+  -v ./outputs/rl:/workspace/rl:ro \
+  solidity-train:sft \
+  bash -c "pip install -q wandb && python3 wandb_monitor.py --rl-dir /workspace/rl"
+```
+
+### 5. Agentic Eval (Full Repo Exploration)
+
+```bash
+# Build agentic eval image
+docker build -t hud-eval .
+
+# Run against vLLM-served model
+docker run -d --name agentic-eval --network host \
+  -v ./data:/app/data:ro -v ./results:/app/results \
+  hud-eval --base-url http://localhost:30000/v1 \
+    --model Qwen3.5-9B-SFT --concurrency 16 --max-steps 20
+```
+
+## Scoring System
+
+Deterministic, no LLM-as-judge. Five weighted components:
 
 | Component | Weight | Method |
 |-----------|--------|--------|
-| `category_match` | 40% | Word overlap + keyword matching against canonical category |
-| `explanation_quality` | 25% | Keyword heuristics: code references, attack vectors, causal reasoning |
-| `line_accuracy` | 15% | F1 score between submitted and ground truth bug lines (±1 tolerance) |
-| `exploitability` | 10% | Quality of attack_path, prerequisites, impact fields |
-| `severity_match` | 10% | Distance from expected severity (exact=1.0, 1 off=0.6, 2 off=0.3) |
+| `category_match` | 40% | Keyword matching against 22 canonical categories |
+| `explanation_quality` | 25% | Code references, attack terms, precondition overlap |
+| `line_accuracy` | 15% | F1 score vs ground truth bug lines (±1 tolerance) |
+| `exploitability` | 10% | Quality of attack_path, prerequisites, impact |
+| `severity_match` | 10% | Distance from expected severity level |
 
-**Final reward** = `weighted_sum × schema_penalty × hint_penalty`
+Penalties: 0.9× for missing structured fields, 0.85× for multi-label, 0.7× for using hints.
 
-- Schema penalty: 0.9× for empty structured fields, 0.85× for multi-label submissions (stack multiplicatively)
-- Hint penalty: 0.7× if `list_hints()` was called
+## Data Sources
 
-## Running Evaluations
+- **[protocol-vulnerabilities-index](https://github.com/kadenzipfel/protocol-vulnerabilities-index)** — 10,600 DeFi audit findings across 30+ protocol types
+- **[evmbench](https://github.com/openai/frontier-evals)** — 44 patched contracts (clean class) + 108 OOD vulnerable contracts from real audit contests
 
-### Standalone (no HUD credits)
+## Architecture Notes
 
-```bash
-# Quick smoke test (1 task)
-python run_eval_standalone.py --model claude-opus-4-6 --max-tasks 1
-
-# Full eval with both models
-python run_eval_standalone.py --models claude-opus-4-6 claude-sonnet-4-6
-
-# Control concurrency and task file
-python run_eval_standalone.py --model claude-opus-4-6 --concurrency 20
-python run_eval_standalone.py --model claude-opus-4-6 --task-file data/tasks_eval_ood.json
-```
-
-Results are saved to `results/<model>_<timestamp>.json` with full message traces (RL-ready).
-
-### HUD-based (requires credits)
-
-```bash
-# Quick test
-python run_eval.py --mode quick
-
-# Full eval across models
-python run_eval.py --mode eval --models claude-opus-4-6 claude-sonnet-4-6
-python run_eval.py --mode eval --models claude-opus-4-6 --report-clean
-python run_eval.py --mode eval --models claude-opus-4-6 --report-ood
-
-# Training data collection
-python run_eval.py --mode train --group 3
-
-# Curriculum training (easy → hard)
-python run_eval.py --mode curriculum --group 3
-
-# Checkpoint evaluation
-python run_eval.py --mode checkpoint --checkpoint my-org/vuln-detect-v1
-```
-
-## Results
-
-Eval in progress — running full suite (972 tasks × 2 models) with Claude Opus 4.6 and Sonnet 4.6 via standalone harness.
-
-Early signal from quick tests: Opus scores 0.5–0.9 per episode depending on vulnerability category and code complexity.
-
-## What's Left To Do
-
-1. **Analyze eval results** — full Opus vs Sonnet comparison once current run completes
-2. **Improve difficulty labels** — current assignment is code-length-only (≤10 lines = easy, ≤25 = medium, >25 = hard), which puts 83% of tasks as "hard." Relabel empirically from eval reward distributions
-3. **Annotate bug_lines** — 22% of scenarios have no ground truth line numbers (scored as flat 0.5). Prioritize high-value categories
-4. **Run RL training** — SLIME integration is built (see below), needs GPU cluster to execute
-5. **Optional improvements**:
-   - Add LLM-as-judge for explanation scoring (better signal, but slower + nondeterministic)
-   - Expand to multi-file contract analysis
-   - Add remediation scoring (does the agent suggest a correct fix?)
-   - Add more evmbench audits as they become available
-
----
-
-## RL Training with SLIME
-
-This section explains how we train an open-source model (Qwen3-4B) to detect Solidity vulnerabilities using reinforcement learning. It covers the full pipeline: what SLIME is, how it works internally, how our environment plugs into it, and how to run training.
-
-### Why RL Instead of Just Fine-Tuning?
-
-Standard supervised fine-tuning (SFT) teaches a model to imitate expert trajectories — in our case, Claude's audit traces. The model learns to reproduce what Claude did, but it can't go beyond that ceiling.
-
-Reinforcement learning is different. The model generates its *own* audit attempts, gets a reward signal from our deterministic scorer, and learns to maximize that reward through trial and error. Over thousands of rollouts, it can discover audit strategies that Claude never used — different tool-calling sequences, more precise line identification, better-structured explanations.
-
-Our approach uses both:
-
-1. **Phase 1 — SFT warmstart**: Train on Claude's best traces so the model learns the basic format (tool-calling, Solidity analysis, structured submissions). Without this, a base Qwen3 model would generate garbage and never get meaningful reward signal.
-2. **Phase 2 — GRPO online RL**: The model plays thousands of audit episodes against our environment, learning from its own successes and failures. This is where it improves beyond imitation.
-
-### What Is SLIME?
-
-[SLIME](https://github.com/volcengine/verl) (by ByteDance/volcengine) is an RL post-training framework that combines two systems:
-
-- **Megatron-LM** for distributed training (forward/backward passes, gradient updates, optimizer steps)
-- **SGLang** for fast inference during rollout generation (the model generates audit attempts using SGLang as a serving engine)
-
-SLIME handles the orchestration between these two systems: generating rollouts with the current policy, computing rewards, updating the policy via gradient descent, then syncing the new weights back to the inference engine for the next round.
-
-It supports multiple RL algorithms (GRPO, PPO, REINFORCE++) and custom environments via pluggable generate/reward functions — which is exactly how we integrate our Solidity audit environment.
-
-### Training Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          SLIME Training Loop                            │
-│                                                                         │
-│  for each rollout step:                                                │
-│                                                                         │
-│  ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐  │
-│  │  1. ROLLOUT       │    │  2. REWARD        │    │  3. TRAINING     │  │
-│  │  (SGLang)         │───▶│  (Environment)    │───▶│  (Megatron)      │  │
-│  │                   │    │                   │    │                   │  │
-│  │  Model generates  │    │  Episode scores   │    │  Compute adv.   │  │
-│  │  audit attempts   │    │  each attempt     │    │  Policy gradient │  │
-│  │  via tool-calling │    │  deterministically │    │  Update weights  │  │
-│  └──────────────────┘    └──────────────────┘    └────────┬──────────┘  │
-│                                                            │             │
-│                                                   ┌────────▼──────────┐  │
-│                                                   │  4. WEIGHT SYNC   │  │
-│                                                   │  Megatron → HF    │  │
-│                                                   │  → SGLang engines │  │
-│                                                   │  via NCCL         │  │
-│                                                   └───────────────────┘  │
-│                                                                         │
-│  Repeat for --num-rollout steps (e.g., 3000)                           │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-**Data flow for a single rollout step:**
-
-```
-slime_prompts.jsonl          slime_generate.py              slime_reward.py
-(scenario IDs)          (agent-environment loop)        (deterministic scorer)
-       │                         │                              │
-       ▼                         ▼                              ▼
-  ┌─────────┐    ┌───────────────────────────┐    ┌──────────────────────┐
-  │ Sample   │    │ Load scenario             │    │ Return pre-computed  │
-  │ prompt=  │───▶│ Build Qwen3 prompt        │───▶│ reward + subscores   │
-  │ "find/…" │    │ Multi-turn SGLang loop    │    │ from generate()      │
-  └─────────┘    │ Execute tools locally      │    └──────────────────────┘
-                  │ Score via ep.evaluate()    │
-                  │ Return tokens + loss_mask  │
-                  └───────────────────────────┘
-                               │
-                               ▼
-                  ┌───────────────────────────┐
-                  │ Sample populated:          │
-                  │  .tokens = [prompt + resp] │
-                  │  .loss_mask = [0,0,1,1,…]  │
-                  │  .reward = 0.73            │
-                  │  .rollout_log_probs = […]  │
-                  └───────────────────────────┘
-```
-
-### How SLIME Works Internally
-
-This section explains SLIME's internals for readers who want to understand what happens under the hood.
-
-#### The Main Training Loop
-
-SLIME's training loop (`train.py`) is conceptually simple — it repeats three steps:
-
-```python
-for rollout_id in range(num_rollout):  # e.g., 3000 steps
-    # 1. Generate: model produces audit attempts via SGLang
-    rollout_data = rollout_manager.generate(rollout_id)
-
-    # 2. Train: Megatron computes policy gradient and updates weights
-    actor_model.train(rollout_id, rollout_data)
-
-    # 3. Sync: push updated weights from Megatron back to SGLang
-    actor_model.update_weights()
-```
-
-Each iteration generates a batch of rollouts (audit attempts), scores them, computes the policy gradient, and updates the model. The model improves because it's always generating with the latest weights.
-
-#### Rollout Generation (SGLang)
-
-During rollout, the model runs on SGLang inference servers. For each prompt (scenario ID), SLIME:
-
-1. Calls our custom `generate()` function with a `Sample` object
-2. Our function runs the multi-turn tool-calling loop against the environment
-3. Each SGLang inference call POSTs to the `/generate` endpoint with token IDs and sampling parameters
-4. SGLang returns generated tokens **and log-probabilities** (critical for computing the policy gradient later)
-5. After the episode ends, our function returns the `Sample` populated with tokens, log-probs, loss mask, and reward
-
-SLIME generates **N samples per prompt** (e.g., 8). This means each scenario is attempted 8 times with different random sampling. This group of attempts is what GRPO uses to compute relative advantages.
-
-#### The Sample Dataclass
-
-Everything flows through SLIME's `Sample` object. Here are the fields that matter for training:
-
-```python
-@dataclass
-class Sample:
-    prompt: str              # Input: scenario ID (e.g., "findings/yield/2957/1")
-    tokens: list[int]        # All token IDs: prompt + response concatenated
-    response: str            # Generated text (for logging)
-    response_length: int     # Number of response tokens
-
-    loss_mask: list[int]     # Binary mask over response tokens:
-                             #   1 = model-generated (train on these)
-                             #   0 = environment output (don't train on these)
-
-    reward: float            # Scalar reward from our scorer (0.0 to 1.0)
-    rollout_log_probs: list  # Log-probability of each token under current policy
-                             # (needed for importance sampling in policy gradient)
-
-    status: Status           # COMPLETED, TRUNCATED, ABORTED, FAILED
-    metadata: dict           # Subscores, scenario info, etc.
-```
-
-#### The Loss Mask
-
-The loss mask is critical for tool-calling RL. In a multi-turn episode, the token sequence looks like:
-
-```
-[system prompt] [user: "Begin your audit."] [assistant: "I'll read the code..." <tool_call>...]
-[user: <tool_response>...code output...</tool_response>] [assistant: "I see a reentrancy..."
-<tool_call>submit_finding...</tool_call>] [user: <tool_response>...submitted...</tool_response>]
-```
-
-The model should only learn from its own decisions (assistant turns), not from the environment's responses (tool results, code output). The loss mask encodes this:
-
-```
-Tokens:    [prompt tokens...] [model tokens...] [tool result tokens...] [model tokens...] [tool result...]
-Loss mask: [0, 0, 0, ..., 0]  [1, 1, 1, ..., 1]  [0, 0, 0, ..., 0]     [1, 1, 1, ..., 1]  [0, 0, ..., 0]
-           ^^^^^^^^^^^^^^^^    ^^^^^^^^^^^^^^^^    ^^^^^^^^^^^^^^^^^^     ^^^^^^^^^^^^^^^^    ^^^^^^^^^^^^
-           prompt (don't       model generated     environment output     model generated     env output
-           train)              (train!)             (don't train)          (train!)            (don't train)
-```
-
-During the policy gradient computation, only positions where `loss_mask = 1` contribute to the loss. This prevents the model from being penalized or credited for tokens it didn't generate.
-
-#### GRPO: Group Relative Policy Optimization
-
-GRPO is the RL algorithm we use. It's simpler than PPO (no value network needed) and works well for language model training.
-
-**How it works:**
-
-1. **Generate a group**: For each prompt (scenario), generate N completions (e.g., 8 audit attempts)
-2. **Score each**: Our environment scores each attempt (rewards between 0.0 and 1.0)
-3. **Compute group advantage**: For each completion, the advantage is how much better it is than the group average:
-   ```
-   advantage_i = reward_i - mean(rewards_in_group)
-   ```
-   If the group rewards are [0.3, 0.7, 0.5, 0.8, 0.2, 0.6, 0.4, 0.9], the mean is 0.55, so the completion with reward 0.9 gets advantage +0.35 and the one with 0.2 gets -0.35.
-4. **Policy gradient**: Apply token-level advantage with PPO-style clipping:
-   ```
-   ratio = exp(log_prob_new - log_prob_old)
-   loss = -min(ratio × advantage, clip(ratio, 1-ε, 1+ε) × advantage)
-   ```
-   This pushes the model to generate more tokens from high-reward completions and fewer from low-reward ones.
-5. **KL penalty** (optional): A penalty term prevents the policy from drifting too far from the reference (initial) model:
-   ```
-   total_loss = policy_loss + kl_coef × KL(π_new || π_ref)
-   ```
-
-**Why GRPO over PPO?** GRPO doesn't need a separate value (critic) network. PPO trains both an "actor" (policy) and a "critic" (value function that estimates expected future reward). GRPO skips the critic by using the group mean as a baseline. This halves the compute and memory requirements.
-
-#### Weight Synchronization
-
-After each training step, Megatron has updated weights but SGLang is still running the old model. SLIME syncs them:
-
-1. **Pause** all SGLang inference engines (flush pending requests)
-2. **Convert** Megatron's distributed weights (tensor-parallel shards) to HuggingFace format
-3. **Broadcast** the full weights to all SGLang engines via NCCL (GPU-to-GPU transfer)
-4. **Resume** inference — SGLang now serves the updated model
-
-This happens every training step so the rollouts are always on-policy (generated by the latest model).
-
-### Our SLIME Integration
-
-We integrate with SLIME through four files. This section explains each one in detail.
-
-#### `slime_generate.py` — The Agent-Environment Loop
-
-This is the core integration file. SLIME calls our `generate()` function for each rollout sample, and we run a full audit episode inside it.
-
-**Function signature:**
-
-```python
-async def generate(args, sample: Sample, sampling_params) -> Sample
-```
-
-**Step-by-step walkthrough:**
-
-**1. Load the scenario.** The `sample.prompt` field contains a scenario ID (e.g., `"findings/yield-aggregator/1002/0"`). We look it up in our pre-loaded scenario map (from `data/scenarios.json`):
-
-```python
-scenario = scenario_map[sample.prompt]
-ep = Episode(scenario)  # Create episode with scoring state
-```
-
-**2. Build the prompt.** We construct a Qwen3-format prompt with the system message (auditor instructions) and tool definitions. The tools are defined in OpenAI function-calling schema, which is what Qwen3's chat template expects:
-
-```python
-system_prompt = f"You are a smart contract security auditor reviewing a {protocol_type} protocol..."
-prompt_text = format_prompt(system_prompt, TOOLS_OPENAI)  # Jinja2 template
-prompt_token_ids = tokenizer(prompt_text)["input_ids"]
-```
-
-The Jinja2 template produces Qwen3's expected format:
-```
-<|im_start|>system
-You are a smart contract security auditor...
-
-# Tools
-You may call one or more functions...
-<tools>
-[{"type": "function", "function": {"name": "read_code", ...}}, ...]
-</tools>
-
-For each function call, return a json object with function name and arguments within
-<tool_call></tool_call> XML tags:
-<tool_call>
-{"name": <function-name>, "arguments": <args-json-object>}
-</tool_call>
-<|im_end|>
-<|im_start|>user
-Begin your audit.<|im_end|>
-<|im_start|>assistant
-```
-
-**3. Multi-turn loop.** For up to 12 turns, we generate from SGLang and dispatch tool calls:
-
-```python
-for turn in range(MAX_TURNS):
-    # Generate from SGLang — returns tokens + log-probs
-    output = await post(sglang_url, {
-        "input_ids": prompt_token_ids + response_token_ids,
-        "sampling_params": sampling_params,
-        "return_logprob": True,
-    })
-
-    # Model-generated tokens get loss_mask = 1 (train on these)
-    response_token_ids += cur_token_ids
-    loss_masks += [1] * len(cur_token_ids)
-
-    # Parse tool calls from <tool_call>...</tool_call> tags
-    tool_calls = parse_tool_calls(cur_text)
-
-    # Execute each tool locally
-    for tc in tool_calls:
-        result = ep.call_tool(tc["name"], tc["arguments"])
-
-    # Tool results get loss_mask = 0 (don't train on these)
-    obs_token_ids = tokenizer(observation_text)["input_ids"]
-    response_token_ids += obs_token_ids
-    loss_masks += [0] * len(obs_token_ids)
-
-    if "submit_finding" in tool_calls:
-        break  # Episode done
-```
-
-**4. Score.** After the loop ends, we run our deterministic scorer:
-
-```python
-result = ep.evaluate()  # Returns reward + 5 subscores
-sample.reward = result["reward"]
-sample.tokens = prompt_token_ids + response_token_ids
-sample.loss_mask = loss_masks
-```
-
-**Tool-calling format.** The model outputs tool calls as XML tags in its text:
-
-```xml
-I'll start by examining the code.
-<tool_call>
-{"name": "read_code", "arguments": {}}
-</tool_call>
-```
-
-We parse these with regex, execute the tool locally via `ep.call_tool()`, and inject the result as a user turn:
-
-```xml
-<|im_end|>
-<|im_start|>user
-<tool_response>
-{"name": "read_code", "result": "  1 | pragma solidity ^0.8.0;\n  2 | ..."}
-</tool_response>
-<|im_end|>
-<|im_start|>assistant
-```
-
-#### `slime_reward.py` — Reward Passthrough
-
-The reward is already computed inside `generate()` via `ep.evaluate()`. SLIME's architecture separates generation and reward computation, so we provide a reward function that simply reads back the pre-computed value:
-
-```python
-async def reward_func(args, sample, **kwargs):
-    return {"score": sample.reward, "subscores": sample.metadata.get("subscores", {})}
-```
-
-#### `prepare_slime_data.py` — Prompt Dataset Generator
-
-Converts our task files into SLIME's expected JSONL format. Each line is a scenario that will be used as a prompt during rollout:
-
-```bash
-python prepare_slime_data.py
-# Output: data/slime_prompts.jsonl (3,834 prompts)
-```
-
-Output format (one JSON per line):
-```json
-{"text": "findings/liquid-staking/1363/0", "label": "oracle-manipulation", "metadata": {"difficulty": "easy", "protocol_type": "liquid-staking", "category_slug": "oracle"}}
-```
-
-- `text` — the scenario ID, used as `sample.prompt` in `generate()`
-- `label` — the ground truth category (available for analysis, not used in RL reward)
-- `metadata` — difficulty and protocol info for stratified sampling
-
-SLIME's `Dataset` class reads this JSONL and creates `Sample` objects with `prompt = text`.
-
-#### `convert_traces_for_sft.py` — Claude Trace Converter
-
-Converts our Claude evaluation traces into the format needed for SFT warmstart training.
-
-```bash
-python convert_traces_for_sft.py --min-reward 0.7
-# Output: data/slime_sft_traces.jsonl (367 high-quality traces)
-```
-
-**What it does:**
-
-1. Reads all `results/*.json` files (Claude Opus and Sonnet eval traces)
-2. Filters to traces with reward >= 0.7 (high quality only)
-3. Deduplicates per scenario ID (keeps the highest-reward trace)
-4. Converts Anthropic message format to Qwen3 message format
-
-**Format conversion — Anthropic to Qwen3:**
-
-Anthropic represents tool calls as structured blocks within the message content:
-
-```json
-{"role": "assistant", "content": [
-  {"type": "text", "text": "I'll read the code..."},
-  {"type": "tool_use", "id": "toolu_01Abc", "name": "read_code", "input": {}}
-]}
-{"role": "user", "content": [
-  {"type": "tool_result", "tool_use_id": "toolu_01Abc", "content": "1 | pragma solidity..."}
-]}
-```
-
-Qwen3 uses inline XML tags in plain text:
-
-```json
-{"role": "assistant", "content": "I'll read the code...\n<tool_call>\n{\"name\": \"read_code\", \"arguments\": {}}\n</tool_call>"}
-{"role": "user", "content": "<tool_response>\n{\"result\": \"1 | pragma solidity...\"}\n</tool_response>"}
-```
-
-The converter also maps `input_schema` (Anthropic's tool definition key) to `parameters` (OpenAI/Qwen3's key).
-
-**Output format:**
-
-```json
-{
-  "messages": [
-    {"role": "system", "content": "You are a smart contract security auditor..."},
-    {"role": "user", "content": "Begin your audit."},
-    {"role": "assistant", "content": "...<tool_call>...</tool_call>"},
-    {"role": "user", "content": "<tool_response>...</tool_response>"},
-    {"role": "assistant", "content": "...<tool_call>submit_finding...</tool_call>"}
-  ],
-  "tools": [{"type": "function", "function": {"name": "read_code", ...}}, ...],
-  "reward": 0.847,
-  "metadata": {
-    "scenario_id": "findings/yield/2957/1",
-    "source_model": "claude-opus-4-6",
-    "canonical_category": "oracle-manipulation",
-    "difficulty": "hard"
-  }
-}
-```
-
-During SFT, SLIME's `MultiTurnLossMaskGenerator` reads these messages and automatically generates the loss mask: `1` for assistant turns (model should learn to produce these), `0` for system/user turns (context the model receives, not generates).
-
-### Data Pipeline
-
-```
-protocol-vulnerabilities-index (10,600 findings)
-        │
-        ▼
-  build_scenarios.py
-        │
-        ▼
-  data/scenarios.json (~4,900 scenarios)
-        │
-        ├── 80% → tasks_train.json (3,834 tasks)
-        │              │
-        │              ▼
-        │         prepare_slime_data.py
-        │              │
-        │              ▼
-        │         data/slime_prompts.jsonl ──────────▶ SLIME RL training
-        │
-        └── 20% → tasks_eval.json (972 tasks) ──────▶ Evaluation
-
-  results/*.json (Claude eval traces)
-        │
-        ▼
-  convert_traces_for_sft.py (filter reward >= 0.7)
-        │
-        ▼
-  data/slime_sft_traces.jsonl (367 traces) ─────────▶ SLIME SFT warmstart
-```
-
-**Scenario structure** (from `data/scenarios.json`):
-
-```json
-{
-  "id": "findings/algo-stables/6354/0",
-  "protocol_type": "algo-stables",
-  "protocol_name": "Tigris Trade",
-  "canonical_category": "oracle-manipulation",
-  "category_slug": "stale-price",
-  "code_clean": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n...",
-  "preconditions": "This bug report is about a vulnerability in the TradingLibrary...",
-  "hints": ["Check the Chainlink price feed validation", "Look for stale price data"],
-  "bug_lines": [91, 92, 93, 94, 95],
-  "difficulty": "easy",
-  "ground_truth_severity": "MEDIUM"
-}
-```
-
-### Training Workflow
-
-#### Prerequisites
-
-- [SLIME](https://github.com/volcengine/verl) installed with Megatron and SGLang backends
-- GPU cluster (SLIME uses Ray for distributed orchestration)
-- Base model checkpoint (e.g., `Qwen/Qwen3-4B` from HuggingFace)
-- Evaluation data generated (see Setup section above)
-
-#### Step 1: Generate Training Data
-
-```bash
-# Create SLIME prompt dataset from training tasks
-python prepare_slime_data.py
-# → data/slime_prompts.jsonl (3,834 prompts)
-
-# Convert Claude traces for SFT warmstart (requires eval results in results/)
-python convert_traces_for_sft.py --min-reward 0.7
-# → data/slime_sft_traces.jsonl (367 high-quality traces)
-
-# Verify outputs
-head -3 data/slime_prompts.jsonl
-head -1 data/slime_sft_traces.jsonl | python -m json.tool | head -20
-```
-
-#### Step 2: SFT Warmstart
-
-Train the base model on Claude's best audit traces. This teaches it the basic format: how to call tools, how to analyze Solidity code, and how to structure a `submit_finding` response.
-
-```bash
-python train.py \
-  --hf-checkpoint Qwen/Qwen3-4B \
-  --prompt-data data/slime_sft_traces.jsonl \
-  --input-key messages \
-  --tool-key tools \
-  --loss-type sft_loss \
-  --apply-chat-template \
-  --disable-compute-advantages-and-returns \
-  --num-epoch 3 \
-  --lr 1e-5 \
-  --global-batch-size 128 \
-  --save checkpoints/sft-warmstart
-```
-
-Key flags:
-- `--loss-type sft_loss` — standard supervised fine-tuning loss (negative log-likelihood on assistant tokens)
-- `--input-key messages` — read the conversation from the `messages` field in the JSONL
-- `--tool-key tools` — inject tool definitions into the chat template
-- `--apply-chat-template` — use Qwen3's tokenizer to format messages
-- `--disable-compute-advantages-and-returns` — skip RL advantage computation (not needed for SFT)
-
-During SFT, SLIME's `MultiTurnLossMaskGenerator` automatically computes the loss mask from the message roles — only assistant turns contribute to the loss.
-
-#### Step 3: GRPO Online RL
-
-Now the model learns from its own attempts. Each rollout step generates 8 audit attempts per scenario, scores them, and updates the policy to favor higher-reward strategies.
-
-```bash
-python train.py \
-  --hf-checkpoint checkpoints/sft-warmstart \
-  --prompt-data data/slime_prompts.jsonl \
-  --custom-generate-function-path slime_generate.py:generate \
-  --custom-rm-path slime_reward.py:reward_func \
-  --advantage-estimator grpo \
-  --n-samples-per-prompt 8 \
-  --rollout-batch-size 16 \
-  --rollout-temperature 1.0 \
-  --rollout-max-response-len 4096 \
-  --global-batch-size 128 \
-  --lr 1e-6 \
-  --eps-clip 0.2 \
-  --kl-coef 0.01 \
-  --num-rollout 3000 \
-  --save checkpoints/grpo-v1
-```
-
-Key flags:
-- `--custom-generate-function-path slime_generate.py:generate` — use our agent-environment loop instead of SLIME's default single-turn generation
-- `--custom-rm-path slime_reward.py:reward_func` — use our deterministic scorer instead of SLIME's default reward model
-- `--advantage-estimator grpo` — Group Relative Policy Optimization (no critic network needed)
-- `--n-samples-per-prompt 8` — generate 8 attempts per scenario for group advantage estimation
-- `--rollout-batch-size 16` — process 16 scenarios per rollout step (× 8 samples = 128 episodes)
-- `--eps-clip 0.2` — PPO-style clipping range for the importance ratio
-- `--kl-coef 0.01` — KL divergence penalty to prevent policy drift from the reference model
-- `--num-rollout 3000` — total number of rollout steps (3000 × 128 episodes = 384K total episodes)
-
-**What happens each step:**
-
-1. SLIME picks 16 scenarios from `slime_prompts.jsonl`
-2. For each scenario, `generate()` runs 8 times with temperature=1.0 (different sampling each time)
-3. Each run is a full audit episode: the model calls tools, reads code, and submits findings
-4. Our scorer assigns rewards (0.0 to 1.0 based on 5 weighted subscores)
-5. GRPO computes advantages: `advantage_i = reward_i - mean(group_rewards)`
-6. Megatron applies the policy gradient (only on `loss_mask=1` tokens)
-7. Updated weights are synced to SGLang for the next step
-
-#### Step 4: Evaluation
-
-After training, evaluate the model on held-out scenarios and compare against Claude baselines:
-
-```bash
-# Evaluate the trained model using SLIME's eval mode
-python train.py \
-  --hf-checkpoint checkpoints/grpo-v1 \
-  --eval-prompt-data solidity_eval data/slime_prompts_eval.jsonl \
-  --custom-generate-function-path slime_generate.py:generate \
-  --custom-rm-path slime_reward.py:reward_func \
-  --eval-interval 1
-
-# Or generate an eval prompt JSONL from the held-out set
-python prepare_slime_data.py --task-file data/tasks_eval.json --output data/slime_prompts_eval.jsonl
-```
-
-### Key Concepts Glossary
-
-| Term | Definition |
-|------|-----------|
-| **Rollout** | One round of data generation where the model plays episodes against the environment |
-| **Episode** | A single audit attempt: model reads code, calls tools, submits a finding, gets scored |
-| **GRPO** | Group Relative Policy Optimization — RL algorithm that computes advantages by comparing a group of completions for the same prompt |
-| **PPO** | Proximal Policy Optimization — RL algorithm that uses a value network for advantage estimation (more compute than GRPO) |
-| **SFT** | Supervised Fine-Tuning — train on expert demonstrations (Claude traces) by minimizing token-level cross-entropy |
-| **Loss Mask** | Binary mask over tokens: 1 = model-generated (train on), 0 = environment-provided (skip). Prevents training on tool results |
-| **Advantage** | How much better a completion is than expected. Positive = better than average, negative = worse. Drives the policy gradient direction |
-| **KL Divergence** | Measures how far the current policy has drifted from the reference. Penalty prevents mode collapse |
-| **Policy Gradient** | The gradient of expected reward with respect to model parameters. Points in the direction of higher-reward behavior |
-| **Weight Sync** | After training, updated Megatron weights are converted to HF format and broadcast to SGLang engines via NCCL |
-| **SGLang** | High-throughput LLM inference engine used by SLIME for fast rollout generation |
-| **Megatron-LM** | NVIDIA's distributed training framework, handles tensor/pipeline/data parallelism |
-| **Sample** | SLIME's core data object — carries prompt, tokens, response, reward, loss_mask, and log-probs through the pipeline |
-| **Scenario** | One Solidity code snippet + metadata (category, bug lines, preconditions) from our dataset |
-| **Episode (env)** | Our `Episode` class that encapsulates tool execution and deterministic scoring for one scenario |
+- **HUD SDK optional** — `env.py` works standalone (lazy import). HUD integration available but not required.
+- **Qwen3.5 native tool calling** — SFT traces use structured `tool_calls` fields. The tokenizer's `apply_chat_template` formats them as `qwen3_coder` XML natively.
+- **vLLM nightly required** — Qwen3.5's hybrid DeltaNet/attention architecture needs vLLM from main branch (pre-0.17.0).
+- **8x GPU data-parallel** — RL rollouts use `vllm serve -dp 8` for 8 replicas of the 9B model (~17GB each).
 
 ## License
 
 Dataset: [protocol-vulnerabilities-index](https://github.com/kadenzipfel/protocol-vulnerabilities-index) (check repo for license)
-Framework: [HUD](https://hud.ai)
+Training framework: [Open Trajectory Gym](https://github.com/westonbrown/open-trajectory-gym) (Apache 2.0)
