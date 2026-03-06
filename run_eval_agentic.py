@@ -63,6 +63,63 @@ from env import (
 load_dotenv()
 
 # ---------------------------------------------------------------------------
+# Auto-submit extraction from text analysis
+# ---------------------------------------------------------------------------
+
+# Category keywords for extraction
+_VULN_TYPES = [
+    "reentrancy", "oracle-manipulation", "access-control", "flash-loan",
+    "precision-rounding", "slippage-protection", "fee-on-transfer",
+    "integer-overflow", "denial-of-service", "frontrunning-mev",
+    "governance", "liquidation", "input-validation", "reward-accounting",
+    "unchecked-returns", "initialization", "erc4626-vault", "locked-funds",
+    "stale-state", "signature-replay", "incorrect-math", "no-vulnerability",
+    "first-depositor-inflation",
+]
+
+
+def _auto_submit_from_text(ep, text: str) -> None:
+    """Best-effort extraction of a vulnerability finding from free text.
+
+    Called when the model wrote analysis but never called submit_finding().
+    Extracts what it can and submits — score will be partial but non-zero.
+    """
+    text_lower = text.lower()
+
+    # Find vulnerability type
+    vuln_type = "input-validation"  # fallback
+    for vt in _VULN_TYPES:
+        if vt.replace("-", " ") in text_lower or vt in text_lower:
+            vuln_type = vt
+            break
+
+    # Find severity
+    severity = "HIGH"
+    for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "NONE"]:
+        if sev.lower() in text_lower:
+            severity = sev
+            break
+
+    # Find line numbers (patterns like "line 42", "lines 10-15", "L91")
+    import re
+    line_nums = re.findall(r'(?:line|L|#)\s*(\d+)', text, re.IGNORECASE)
+    affected_lines = ",".join(line_nums[:10]) if line_nums else ""
+
+    # Use the text itself as explanation (truncate if needed)
+    explanation = text[:2000] if len(text) > 2000 else text
+
+    ep.submit_finding(
+        vulnerability_type=vuln_type,
+        explanation=explanation,
+        severity=severity,
+        affected_lines=affected_lines,
+        attack_path="",
+        prerequisites="",
+        impact="",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Qwen native tool-call parsing (from run_eval_standalone.py)
 # ---------------------------------------------------------------------------
 
@@ -772,11 +829,18 @@ async def run_agentic_episode(
                     except json.JSONDecodeError:
                         args = {}
                     result_text = ep.call_tool(tc.function.name, args)
-                    messages.append({
+                    tool_msg = {
                         "role": "tool",
                         "tool_call_id": tc.id,
                         "content": result_text,
-                    })
+                    }
+                    # Add step urgency for late steps
+                    if steps >= max_steps - 3 and tc.function.name != "submit_finding":
+                        tool_msg["content"] += (
+                            f"\n\n[Step {steps}/{max_steps}] Running low on steps. "
+                            f"Submit your finding soon using submit_finding()."
+                        )
+                    messages.append(tool_msg)
                     if tc.function.name == "submit_finding":
                         submitted = True
 
@@ -792,7 +856,21 @@ async def run_agentic_episode(
             messages.append(assistant_msg)
 
             if not tool_calls:
-                break  # No tool calls, agent is done
+                # Model output text without a tool call. Instead of giving up,
+                # nudge it to submit — the text often contains a valid analysis.
+                if step < max_steps - 2:
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            f"[Step {steps}/{max_steps}] You wrote an analysis but "
+                            f"didn't call a tool. Please call submit_finding() now "
+                            f"with your vulnerability assessment. Include: "
+                            f"vulnerability_type, explanation, severity, affected_lines, "
+                            f"attack_path, prerequisites, and impact."
+                        ),
+                    })
+                    continue  # Give it another chance
+                break  # Final steps exhausted, give up
 
             submitted = False
             tool_results = []
@@ -804,9 +882,16 @@ async def run_agentic_episode(
                 if tc["name"] == "submit_finding":
                     submitted = True
 
+            # Add step counter to tool responses for urgency
+            step_prefix = f"[Step {steps}/{max_steps}] "
             results_text = "\n".join(
                 f"<tool_response>\n{r}\n</tool_response>" for r in tool_results
             )
+            if steps >= max_steps - 3 and not submitted:
+                results_text += (
+                    f"\n\n{step_prefix}You are running low on steps. "
+                    f"Submit your finding soon using submit_finding()."
+                )
             messages.append({"role": "user", "content": results_text})
 
             if submitted:
@@ -814,6 +899,17 @@ async def run_agentic_episode(
 
     except Exception as e:
         error = str(e)
+
+    # Safety net: if the model never submitted but wrote analysis text,
+    # try to extract a submission from the last assistant message.
+    if ep.submission is None and messages:
+        last_assistant = ""
+        for m in reversed(messages):
+            if m.get("role") == "assistant" and m.get("content", "").strip():
+                last_assistant = m["content"]
+                break
+        if last_assistant and len(last_assistant) > 50:
+            _auto_submit_from_text(ep, last_assistant)
 
     result = ep.evaluate()
     result["messages"] = messages
@@ -824,6 +920,7 @@ async def run_agentic_episode(
     result["repo_key"] = str(repo_root.relative_to(repo_root.parent.parent))
     result["files_read"] = sorted(ep.files_read)
     result["tool_call_count"] = ep.tool_call_count
+    result["auto_submitted"] = ep.submission is not None and result.get("reward", 0) > 0
 
     return result
 
