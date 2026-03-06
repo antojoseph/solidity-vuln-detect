@@ -11,11 +11,13 @@ Run: python3 test_smoke.py
 
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 # Track pass/fail
 passed = 0
 failed = 0
+skipped = 0
 
 
 def check(name, condition, detail=""):
@@ -26,6 +28,12 @@ def check(name, condition, detail=""):
     else:
         failed += 1
         print(f"  FAIL  {name}{f': {detail}' if detail else ''}")
+
+
+def skip(name, detail=""):
+    global skipped
+    skipped += 1
+    print(f"  SKIP  {name}{f': {detail}' if detail else ''}")
 
 
 def main():
@@ -50,7 +58,7 @@ def main():
         check("SolidityVulnEnv inherits BaseTextEnv",
               issubclass(SolidityVulnEnv, BaseTextEnv))
     except ImportError:
-        check("skyrl_gym available", False, "skyrl-gym not installed")
+        skip("skyrl_gym available", "skyrl-gym not installed")
 
     try:
         from run_eval_standalone import Episode, build_system_prompt, TOOL_DEFINITIONS_OPENAI
@@ -92,14 +100,16 @@ def main():
         check("skyrl_prompts.jsonl exists", False,
               "run: python3 prepare_skyrl_data.py")
 
-    sft_path = data_dir / "slime_sft_traces.jsonl"
-    if sft_path.exists():
-        with open(sft_path) as f:
+    sft_path = data_dir / "sft_traces_structured.jsonl"
+    legacy_sft_path = data_dir / "slime_sft_traces.jsonl"
+    if sft_path.exists() or legacy_sft_path.exists():
+        existing = sft_path if sft_path.exists() else legacy_sft_path
+        with open(existing) as f:
             first = json.loads(f.readline())
-        check(f"slime_sft_traces.jsonl exists", True)
+        check(f"{existing.name} exists", True)
         check("SFT trace has messages", "messages" in first)
     else:
-        check("slime_sft_traces.jsonl exists", False, "optional — needed for SFT")
+        check("SFT trace file exists", False, "optional — needed for SFT")
 
     # --- 3. Episode lifecycle ---
     print("\n--- Episode Lifecycle ---")
@@ -199,10 +209,114 @@ def main():
     check("build_system_prompt works", "security auditor" in prompt)
     check("prompt mentions protocol type", "defi" in prompt)
 
+    # --- 6. Regression checks ---
+    print("\n--- Regression Checks ---")
+
+    from build_scenarios import _exclude_reserved_overlap
+    from env import _parse_affected_lines, evaluate_submission
+    from run_eval_agentic import AgenticEpisode
+    from run_eval_standalone import _resume_key
+
+    parsed_lines = _parse_affected_lines("10-12, 14, 20-18")
+    check("affected_lines supports ranges and mixed forms",
+          parsed_lines == [10, 11, 12, 14, 18, 19, 20],
+          str(parsed_lines))
+
+    no_gt_scenario = {
+        "id": "no-gt",
+        "category_slug": "reentrancy",
+        "canonical_category": "reentrancy",
+        "difficulty": "easy",
+        "bug_lines": [],
+        "code_raw": "function withdraw() external {}",
+        "preconditions": "",
+    }
+    scored = evaluate_submission(
+        no_gt_scenario,
+        {
+            "vulnerability_type": "reentrancy",
+            "explanation": "External call before state update allows attacker reentry.",
+            "severity": "HIGH",
+            "affected_lines": [10, 11],
+            "attack_path": "call, reenter, drain",
+            "prerequisites": "contract holds funds",
+            "impact": "fund loss",
+        },
+    )
+    check("missing GT lines are marked unscored",
+          scored["subscores"]["line_accuracy"] is None and not scored["info"]["line_accuracy_scored"])
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        repo = tmp / "repo"
+        sibling = tmp / "repo2"
+        (repo / "contracts").mkdir(parents=True)
+        sibling.mkdir()
+        (repo / "contracts" / "Vault.sol").write_text("contract Vault {}")
+        (sibling / "secret.sol").write_text("contract Secret {}")
+
+        ep = AgenticEpisode(
+            {
+                "id": "path-test",
+                "protocol_type": "defi",
+                "protocol_name": "demo",
+                "source_file": "contracts/Vault.sol",
+                "canonical_category": "reentrancy",
+                "category_slug": "reentrancy",
+                "difficulty": "easy",
+                "bug_lines": [1],
+                "code_raw": "contract Vault {}",
+                "preconditions": "",
+            },
+            repo,
+        )
+        check("safe_path allows in-repo files",
+              ep._safe_path("contracts/Vault.sol") == (repo / "contracts" / "Vault.sol").resolve())
+        check("safe_path blocks sibling repo traversal",
+              ep._safe_path("../repo2/secret.sol") is None)
+
+        literal_match = ep.grep_code("vault", mode="literal")
+        regex_reject = ep.grep_code("(a+)+$" * 5, mode="regex")
+        check("grep_code literal mode works", "Vault.sol:1" in literal_match)
+        check("grep_code rejects overly complex regex", "too complex" in regex_reject.lower() or "too long" in regex_reject.lower())
+
+    check("resume key includes model/provider",
+          _resume_key("model-a", "sid", "anthropic") != _resume_key("model-b", "sid", "anthropic")
+          and _resume_key("model-a", "sid", "anthropic") != _resume_key("model-a", "sid", "openai:http://localhost"))
+
+    base_scenarios = [
+        {
+            "id": "base-1",
+            "code_clean": "contract A {}",
+            "finding_id": "finding-1",
+            "source_file": "contracts/A.sol",
+            "protocol_name": "repo-a",
+        },
+        {
+            "id": "base-2",
+            "code_clean": "contract B {}",
+            "finding_id": "finding-2",
+            "source_file": "contracts/B.sol",
+            "protocol_name": "repo-b",
+        },
+    ]
+    reserved_scenarios = [
+        {
+            "id": "clean-1",
+            "code_clean": "contract A {}",
+            "finding_id": "finding-clean",
+            "source_file": "contracts/C.sol",
+            "protocol_name": "repo-clean",
+        }
+    ]
+    filtered, removed = _exclude_reserved_overlap(base_scenarios, reserved_scenarios)
+    check("clean/OOD overlap is excluded from base split",
+          removed == 1 and [s["id"] for s in filtered] == ["base-2"])
+
     # --- Summary ---
     print("\n" + "=" * 60)
-    total = passed + failed
-    print(f"Results: {passed}/{total} passed, {failed} failed")
+    total = passed + failed + skipped
+    print(f"Results: {passed}/{total} passed, {failed} failed, {skipped} skipped")
     if failed == 0:
         print("All checks passed!")
     else:

@@ -17,6 +17,8 @@ Examples:
     python run_eval_agentic.py --base-url http://linux:30000/v1 --model Qwen/Qwen3.5-397B-A17B-FP8 --include-snippets
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
@@ -47,20 +49,30 @@ if "hud" not in sys.modules:
     _hud_tools_types.SubScore = type("SubScore", (), {})
     sys.modules["hud.tools.types"] = _hud_tools_types
 
-from dotenv import load_dotenv
-from openai import AsyncOpenAI
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        return False
 
-from env import (
-    CATEGORY_SEVERITY,
-    _load_scenarios,
-    _score_category,
-    _score_explanation,
-    _score_exploitability,
-    _score_lines,
-    _score_severity,
-)
+try:
+    from openai import AsyncOpenAI
+except ImportError:
+    AsyncOpenAI = None
+
+from audit_core import _parse_qwen_tool_calls
+from env import _load_scenarios, _parse_affected_lines, evaluate_submission
 
 load_dotenv()
+
+
+def _provider_key(base_url: str) -> str:
+    return f"openai:{base_url}"
+
+
+def _resume_key(model: str, scenario_id: str, provider: str) -> str:
+    return f"{provider}|{model}|{scenario_id}"
+
 
 # ---------------------------------------------------------------------------
 # Auto-submit extraction from text analysis
@@ -120,48 +132,6 @@ def _auto_submit_from_text(ep, text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Qwen native tool-call parsing (from run_eval_standalone.py)
-# ---------------------------------------------------------------------------
-
-
-def _parse_qwen_tool_calls(content: str) -> list[dict]:
-    """Parse tool calls from Qwen's native text format.
-
-    Supports both formats:
-      Qwen3.5 XML:  <tool_call><function=name><parameter=k>v</parameter></function></tool_call>
-      Qwen3 JSON:   <tool_call>{"name": "...", "arguments": {...}}</tool_call>
-    """
-    calls = []
-    for m in re.finditer(r"<tool_call>(.*?)</tool_call>", content, re.DOTALL):
-        block = m.group(1).strip()
-
-        # Try Qwen3.5 XML format
-        func_match = re.search(r"<function=(\w+)>(.*?)</function>", block, re.DOTALL)
-        if func_match:
-            name = func_match.group(1)
-            params_block = func_match.group(2)
-            args = {}
-            for pm in re.finditer(
-                r"<parameter=(\w+)>\s*(.*?)\s*</parameter>", params_block, re.DOTALL
-            ):
-                args[pm.group(1)] = pm.group(2).strip()
-            calls.append({"name": name, "arguments": args})
-            continue
-
-        # Try JSON format
-        try:
-            data = json.loads(block)
-            calls.append({
-                "name": data.get("name", ""),
-                "arguments": data.get("arguments", {}),
-            })
-        except (json.JSONDecodeError, KeyError):
-            continue
-
-    return calls
-
-
-# ---------------------------------------------------------------------------
 # Tool definitions (OpenAI function calling format)
 # ---------------------------------------------------------------------------
 
@@ -214,10 +184,10 @@ AGENTIC_TOOL_DEFINITIONS_OPENAI = [
         "function": {
             "name": "grep_code",
             "description": (
-                "Search for a regex pattern across Solidity files in the project. "
-                "Returns matching lines with file paths and line numbers. "
-                "Useful for tracing function calls, state variable usage, "
-                "imports, and vulnerability patterns."
+                "Search Solidity files in the project. By default this performs a "
+                "case-insensitive literal substring search. Set mode='regex' only "
+                "for simple regular expressions. Returns matching lines with file "
+                "paths and line numbers."
             ),
             "parameters": {
                 "type": "object",
@@ -230,6 +200,12 @@ AGENTIC_TOOL_DEFINITIONS_OPENAI = [
                         "type": "string",
                         "description": "Optional: search only this specific file",
                         "default": "",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "description": "Search mode: 'literal' (default) or 'regex'",
+                        "enum": ["literal", "regex"],
+                        "default": "literal",
                     },
                 },
                 "required": ["pattern"],
@@ -369,9 +345,8 @@ class AgenticEpisode:
         """Resolve a path and verify it's within repo_root."""
         try:
             target = (self.repo_root / filepath).resolve()
+            target.relative_to(self.repo_root)
         except (ValueError, OSError):
-            return None
-        if not str(target).startswith(str(self.repo_root)):
             return None
         return target
 
@@ -426,12 +401,25 @@ class AgenticEpisode:
             numbered += f"\n\n... truncated ({len(lines)} total lines, showing first {max_lines})"
         return numbered
 
-    def grep_code(self, pattern: str, filepath: str = "") -> str:
+    def grep_code(self, pattern: str, filepath: str = "", mode: str = "literal") -> str:
         self.tool_call_count += 1
-        try:
-            regex = re.compile(pattern, re.IGNORECASE)
-        except re.error as e:
-            return f"Invalid regex pattern: {e}"
+        mode = (mode or "literal").lower()
+        if mode not in {"literal", "regex"}:
+            return "Invalid search mode. Use 'literal' or 'regex'."
+        if len(pattern) > 200:
+            return "Pattern too long. Keep search patterns under 200 characters."
+
+        matcher = None
+        if mode == "regex":
+            complexity = sum(pattern.count(ch) for ch in "*+{}[]()|")
+            if complexity > 12:
+                return "Regex pattern too complex. Use a simpler regex or mode='literal'."
+            try:
+                matcher = re.compile(pattern, re.IGNORECASE)
+            except re.error as e:
+                return f"Invalid regex pattern: {e}"
+        else:
+            needle = pattern.lower()
 
         matches = []
         if filepath:
@@ -450,7 +438,8 @@ class AgenticEpisode:
                 continue
             rel = str(f.relative_to(self.repo_root))
             for i, line in enumerate(content.split("\n"), 1):
-                if regex.search(line):
+                found = matcher.search(line) if mode == "regex" else needle in line.lower()
+                if found:
                     matches.append(f"{rel}:{i}  {line.strip()}")
                     if len(matches) >= 50:
                         break
@@ -458,7 +447,7 @@ class AgenticEpisode:
                 break
 
         if not matches:
-            return f"No matches found for pattern: {pattern}"
+            return f"No matches found for {mode} pattern: {pattern}"
         output = f"Found {len(matches)} match{'es' if len(matches) != 1 else ''}:\n"
         output += "\n".join(matches)
         if len(matches) >= 50:
@@ -501,18 +490,11 @@ class AgenticEpisode:
         impact: str = "",
     ) -> str:
         self.tool_call_count += 1
-        parsed_lines = []
-        if affected_lines.strip():
-            for part in affected_lines.split(","):
-                part = part.strip()
-                if part.isdigit():
-                    parsed_lines.append(int(part))
-
         self.submission = {
             "vulnerability_type": vulnerability_type,
             "explanation": explanation,
             "severity": severity.upper(),
-            "affected_lines": parsed_lines,
+            "affected_lines": _parse_affected_lines(affected_lines),
             "attack_path": attack_path,
             "prerequisites": prerequisites,
             "impact": impact,
@@ -525,7 +507,7 @@ class AgenticEpisode:
         elif name == "read_file":
             return self.read_file(args.get("filepath", ""))
         elif name == "grep_code":
-            return self.grep_code(args.get("pattern", ""), args.get("filepath", ""))
+            return self.grep_code(args.get("pattern", ""), args.get("filepath", ""), args.get("mode", "literal"))
         elif name == "get_project_info":
             return self.get_project_info()
         elif name == "submit_finding":
@@ -535,73 +517,12 @@ class AgenticEpisode:
 
     def evaluate(self) -> dict:
         """Deterministic scoring — identical to Episode.evaluate() in run_eval_standalone.py."""
-        if not self.submission:
-            return {
-                "reward": 0.0,
-                "subscores": {},
-                "info": {"scenario_id": self.scenario["id"], "error": "no_submission"},
-            }
-
-        cat_score = _score_category(
-            self.submission["vulnerability_type"],
-            self.scenario["category_slug"],
-            self.scenario["canonical_category"],
+        return evaluate_submission(
+            self.scenario,
+            self.submission,
+            hints_used=False,
+            code_read=True,
         )
-        expl_score = _score_explanation(self.submission["explanation"], self.scenario)
-        sev_score = _score_severity(self.submission["severity"], self.scenario)
-        line_score = _score_lines(
-            self.submission["affected_lines"],
-            self.scenario.get("bug_lines", []),
-        )
-        exploit_score = _score_exploitability(
-            self.submission.get("attack_path", ""),
-            self.submission.get("prerequisites", ""),
-            self.submission.get("impact", ""),
-            ground_canonical=self.scenario["canonical_category"],
-        )
-
-        # Schema penalty
-        schema_penalty = 1.0
-        if self.scenario["canonical_category"] != "no-vulnerability":
-            if all(
-                not self.submission.get(f, "").strip()
-                for f in ("attack_path", "prerequisites", "impact")
-            ):
-                schema_penalty *= 0.9
-        if "," in self.submission["vulnerability_type"]:
-            schema_penalty *= 0.85
-
-        raw = (
-            0.40 * cat_score
-            + 0.25 * expl_score
-            + 0.10 * sev_score
-            + 0.15 * line_score
-            + 0.10 * exploit_score
-        )
-        final = round(raw * schema_penalty, 4)
-
-        return {
-            "reward": final,
-            "subscores": {
-                "category_match": round(cat_score, 4),
-                "explanation_quality": round(expl_score, 4),
-                "severity_match": round(sev_score, 4),
-                "line_accuracy": round(line_score, 4),
-                "exploitability": round(exploit_score, 4),
-            },
-            "info": {
-                "scenario_id": self.scenario["id"],
-                "canonical_category": self.scenario["canonical_category"],
-                "difficulty": self.scenario.get("difficulty", "unknown"),
-                "hints_used": False,
-                "code_read": True,
-                "schema_penalty": schema_penalty,
-                "submitted_type": self.submission["vulnerability_type"],
-                "submitted_severity": self.submission["severity"],
-                "submitted_lines": self.submission["affected_lines"],
-                "ground_truth_lines": self.scenario.get("bug_lines", []),
-            },
-        }
 
 
 # ---------------------------------------------------------------------------
@@ -633,19 +554,11 @@ class SnippetEpisode:
         return f"{header}\n\nPreconditions:\n{preconditions}"
 
     def submit_finding(self, **kwargs) -> str:
-        parsed_lines = []
-        affected = kwargs.get("affected_lines", "")
-        if isinstance(affected, str) and affected.strip():
-            for part in affected.split(","):
-                part = part.strip()
-                if part.isdigit():
-                    parsed_lines.append(int(part))
-
         self.submission = {
             "vulnerability_type": kwargs.get("vulnerability_type", ""),
             "explanation": kwargs.get("explanation", ""),
             "severity": kwargs.get("severity", "HIGH").upper(),
-            "affected_lines": parsed_lines,
+            "affected_lines": _parse_affected_lines(kwargs.get("affected_lines", "")),
             "attack_path": kwargs.get("attack_path", ""),
             "prerequisites": kwargs.get("prerequisites", ""),
             "impact": kwargs.get("impact", ""),
@@ -662,72 +575,12 @@ class SnippetEpisode:
         return f"Unknown tool: {name}"
 
     def evaluate(self) -> dict:
-        if not self.submission:
-            return {
-                "reward": 0.0,
-                "subscores": {},
-                "info": {"scenario_id": self.scenario["id"], "error": "no_submission"},
-            }
-
-        cat_score = _score_category(
-            self.submission["vulnerability_type"],
-            self.scenario["category_slug"],
-            self.scenario["canonical_category"],
+        return evaluate_submission(
+            self.scenario,
+            self.submission,
+            hints_used=False,
+            code_read=self.code_read,
         )
-        expl_score = _score_explanation(self.submission["explanation"], self.scenario)
-        sev_score = _score_severity(self.submission["severity"], self.scenario)
-        line_score = _score_lines(
-            self.submission["affected_lines"],
-            self.scenario.get("bug_lines", []),
-        )
-        exploit_score = _score_exploitability(
-            self.submission.get("attack_path", ""),
-            self.submission.get("prerequisites", ""),
-            self.submission.get("impact", ""),
-            ground_canonical=self.scenario["canonical_category"],
-        )
-
-        schema_penalty = 1.0
-        if self.scenario["canonical_category"] != "no-vulnerability":
-            if all(
-                not self.submission.get(f, "").strip()
-                for f in ("attack_path", "prerequisites", "impact")
-            ):
-                schema_penalty *= 0.9
-        if "," in self.submission["vulnerability_type"]:
-            schema_penalty *= 0.85
-
-        raw = (
-            0.40 * cat_score
-            + 0.25 * expl_score
-            + 0.10 * sev_score
-            + 0.15 * line_score
-            + 0.10 * exploit_score
-        )
-        final = round(raw * schema_penalty, 4)
-
-        return {
-            "reward": final,
-            "subscores": {
-                "category_match": round(cat_score, 4),
-                "explanation_quality": round(expl_score, 4),
-                "severity_match": round(sev_score, 4),
-                "line_accuracy": round(line_score, 4),
-                "exploitability": round(exploit_score, 4),
-            },
-            "info": {
-                "scenario_id": self.scenario["id"],
-                "canonical_category": self.scenario["canonical_category"],
-                "difficulty": self.scenario.get("difficulty", "unknown"),
-                "hints_used": False,
-                "code_read": self.code_read,
-                "schema_penalty": schema_penalty,
-                "submitted_type": self.submission["vulnerability_type"],
-                "submitted_severity": self.submission["severity"],
-                "submitted_lines": self.submission["affected_lines"],
-                "ground_truth_lines": self.scenario.get("bug_lines", []),
-            },
-        }
 
 
 # ---------------------------------------------------------------------------
@@ -900,8 +753,9 @@ async def run_agentic_episode(
     except Exception as e:
         error = str(e)
 
-    # Safety net: if the model never submitted but wrote analysis text,
-    # try to extract a submission from the last assistant message.
+    strict_result = ep.evaluate()
+    auto_submitted = False
+
     if ep.submission is None and messages:
         last_assistant = ""
         for m in reversed(messages):
@@ -910,8 +764,10 @@ async def run_agentic_episode(
                 break
         if last_assistant and len(last_assistant) > 50:
             _auto_submit_from_text(ep, last_assistant)
+            auto_submitted = ep.submission is not None
 
-    result = ep.evaluate()
+    assisted_result = ep.evaluate() if auto_submitted else strict_result
+    result = strict_result
     result["messages"] = messages
     result["steps"] = steps
     result["error"] = error
@@ -920,7 +776,12 @@ async def run_agentic_episode(
     result["repo_key"] = str(repo_root.relative_to(repo_root.parent.parent))
     result["files_read"] = sorted(ep.files_read)
     result["tool_call_count"] = ep.tool_call_count
-    result["auto_submitted"] = ep.submission is not None and result.get("reward", 0) > 0
+    result["auto_submitted"] = auto_submitted
+    result["strict_reward"] = strict_result["reward"]
+    result["assisted_reward"] = assisted_result["reward"]
+    result["assisted_subscores"] = assisted_result.get("subscores", {})
+    result["strict_tool_submission"] = strict_result.get("info", {}).get("error") != "no_submission"
+    result["assisted_submission"] = assisted_result.get("info", {}).get("error") != "no_submission"
 
     return result
 
@@ -1066,6 +927,10 @@ async def run_eval(
     repo_mapping_path: str = "data/repo_mapping.json",
 ):
     """Run agentic evaluation across models and tasks."""
+    if AsyncOpenAI is None:
+        print("Error: openai is not installed. Install it to use the agentic harness.")
+        sys.exit(1)
+
     api_key = os.environ.get("OPENAI_API_KEY", "empty")
     client = AsyncOpenAI(base_url=base_url, api_key=api_key)
     print(f"Provider: OpenAI-compatible ({base_url})")
@@ -1080,6 +945,7 @@ async def run_eval(
     print(f"Repo mapping: {len(repo_mapping)} entries")
 
     repos_dir = Path("data/repos")
+    provider = _provider_key(base_url)
 
     # Load previous results for resume
     prev_results: dict[str, dict] = {}
@@ -1087,9 +953,15 @@ async def run_eval(
         with open(resume_from) as f:
             prev_data = json.load(f)
         for trace in prev_data.get("traces", []):
-            if trace.get("error") is None:
-                prev_results[trace["scenario_id"]] = trace
-        print(f"Resuming: {len(prev_results)} completed scenarios from {resume_from}")
+            if trace.get("error") is not None:
+                continue
+            key = _resume_key(
+                trace.get("model", ""),
+                trace.get("scenario_id", ""),
+                trace.get("provider", prev_data.get("provider", "unknown")),
+            )
+            prev_results[key] = trace
+        print(f"Resuming: {len(prev_results)} completed episodes from {resume_from}")
 
     # Load tasks
     with open(task_file) as f:
@@ -1140,8 +1012,9 @@ async def run_eval(
         cached_results = []
         pending_tasks = []
         for scenario, repo_path, is_agentic in all_task_list:
-            if scenario["id"] in prev_results:
-                cached_results.append(prev_results[scenario["id"]])
+            key = _resume_key(model, scenario["id"], provider)
+            if key in prev_results:
+                cached_results.append(prev_results[key])
             else:
                 pending_tasks.append((scenario, repo_path, is_agentic))
 
@@ -1169,6 +1042,7 @@ async def run_eval(
                     result = await run_snippet_episode(
                         client, model, scenario, max_steps=min(max_steps, 10)
                     )
+                result["provider"] = provider
                 completed += 1
                 reward = result["reward"]
                 sid = result["scenario_id"]
@@ -1185,8 +1059,8 @@ async def run_eval(
 
         results = cached_results + list(new_results)
 
-        # Aggregate
         rewards = [r["reward"] for r in results if r.get("error") is None]
+        assisted_rewards = [r.get("assisted_reward", r["reward"]) for r in results if r.get("error") is None]
         errors = [r for r in results if r.get("error") is not None]
 
         by_category = defaultdict(list)
@@ -1214,6 +1088,7 @@ async def run_eval(
 
         summary = {
             "model": model,
+            "provider": provider,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "task_file": task_file,
             "eval_type": "agentic",
@@ -1225,6 +1100,11 @@ async def run_eval(
             "mean_reward": round(statistics.mean(rewards), 4) if rewards else 0.0,
             "median_reward": round(statistics.median(rewards), 4) if rewards else 0.0,
             "stdev_reward": round(statistics.stdev(rewards), 4) if len(rewards) > 1 else 0.0,
+            "mean_assisted_reward": round(statistics.mean(assisted_rewards), 4) if assisted_rewards else 0.0,
+            "median_assisted_reward": round(statistics.median(assisted_rewards), 4) if assisted_rewards else 0.0,
+            "strict_tool_submissions": sum(1 for r in results if r.get("strict_tool_submission")),
+            "assisted_submissions": sum(1 for r in results if r.get("assisted_submission")),
+            "auto_submissions": sum(1 for r in results if r.get("auto_submitted")),
             "by_category": {
                 k: round(statistics.mean(v), 4) for k, v in sorted(by_category.items())
             },
@@ -1247,8 +1127,11 @@ async def run_eval(
         print(f"  Completed: {len(rewards)}/{len(all_task_list)}")
         print(f"  Errors: {len(errors)}")
         if rewards:
-            print(f"  Mean reward: {summary['mean_reward']:.4f} ± {summary['stdev_reward']:.4f}")
-            print(f"  Median reward: {summary['median_reward']:.4f}")
+            print(f"  Mean reward (strict): {summary['mean_reward']:.4f} ± {summary['stdev_reward']:.4f}")
+            print(f"  Median reward (strict): {summary['median_reward']:.4f}")
+            print(f"  Mean reward (assisted): {summary['mean_assisted_reward']:.4f}")
+            print(f"  Tool submissions: {summary['strict_tool_submissions']} strict / {summary['assisted_submissions']} assisted")
+            print(f"  Auto-submissions: {summary['auto_submissions']}")
         if agentic_stats:
             print(f"  Avg steps: {agentic_stats['avg_steps']}")
             print(f"  Avg files read: {agentic_stats['avg_files_read']}")

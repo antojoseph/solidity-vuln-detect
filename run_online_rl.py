@@ -1,11 +1,9 @@
-"""Online RL training for Solidity vulnerability detection.
+"""Online rollout collection for Solidity vulnerability detection.
 
-Uses RLOO (Leave-One-Out) reinforcement learning against the live
-SolidityVulnEnv environment. The model generates multiple audit attempts
-per scenario, and the deterministic 5-signal scorer provides reward.
-
-This script can run standalone (without SkyRL) by using the OpenAI-compatible
-vLLM API for generation and our own RLOO advantage computation.
+This script samples multi-attempt audit rollouts, scores them with the live
+environment, and computes RLOO-style advantages for analysis. It does not
+perform optimizer steps or update model weights. For real online RL training,
+use run_skyrl_train.py.
 
 Architecture:
     vLLM server (GPU 0) ←→ This script (GPU 1) ←→ SolidityVulnEnv (CPU)
@@ -24,6 +22,8 @@ Usage:
 Designed to survive session drops when run via Docker (see run_online_rl.sh).
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
@@ -37,7 +37,12 @@ from pathlib import Path
 
 from openai import AsyncOpenAI
 
-from run_eval_standalone import (
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
+from audit_core import (
     Episode,
     TOOL_DEFINITIONS_OPENAI,
     build_system_prompt,
@@ -60,6 +65,26 @@ DATA_PATH = Path(__file__).parent / "data" / "scenarios.json"
 def load_scenarios() -> dict[str, dict]:
     with open(DATA_PATH) as f:
         return {s["id"]: s for s in json.load(f)}
+
+
+
+
+def _load_rollout_defaults(config_path: str) -> dict:
+    if not config_path or yaml is None:
+        return {}
+    path = Path(config_path)
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        config = yaml.safe_load(f) or {}
+    online_rl = config.get("online_rl", {})
+    return {
+        "samples_per_scenario": int(online_rl.get("num_generations", 6)),
+        "batch_size": int(online_rl.get("batch_size", 32)),
+        "max_steps": int(online_rl.get("max_tool_calling_iterations", 5)),
+        "temperature": float(online_rl.get("generation_temperature", 0.7)),
+        "concurrency": int(online_rl.get("max_concurrent_requests", 64)),
+    }
 
 
 def load_prompts(path: str) -> list[dict]:
@@ -248,7 +273,7 @@ async def train(
     if max_scenarios > 0:
         valid_prompts = valid_prompts[:max_scenarios]
 
-    logger.info(f"Training on {len(valid_prompts)} scenarios, "
+    logger.info(f"Collecting rollouts for {len(valid_prompts)} scenarios, "
                 f"{samples_per_scenario} samples each, batch_size={batch_size}")
 
     # Shuffle
@@ -308,6 +333,8 @@ async def train(
 
     # Final summary
     summary = {
+        "mode": "rollout_collection",
+        "uses_weight_updates": False,
         "total_scenarios": len(valid_prompts),
         "samples_per_scenario": samples_per_scenario,
         "total_rollouts": len(all_rewards),
@@ -319,7 +346,7 @@ async def train(
     }
     with open(output_dir / "summary.json", "w") as f:
         json.dump(summary, f, indent=2)
-    logger.info(f"Training complete. Summary: {summary}")
+    logger.info(f"Rollout collection complete. Summary: {summary}")
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +354,7 @@ async def train(
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Online RL for Solidity vuln detection")
+    parser = argparse.ArgumentParser(description="Online rollout collection for Solidity vuln detection")
     parser.add_argument("--model", default="Qwen3.5-9B-SFT",
                         help="Model name (as served by vLLM)")
     parser.add_argument("--data", default="data/skyrl_prompts.jsonl")
@@ -344,6 +371,18 @@ def main():
                         help="Max concurrent API requests (match to vLLM replicas)")
     args = parser.parse_args()
 
+    defaults = {
+        "samples_per_scenario": 6,
+        "batch_size": 32,
+        "max_steps": 5,
+        "temperature": 0.7,
+        "concurrency": 64,
+    }
+    config_defaults = _load_rollout_defaults(args.config)
+    for key, default_value in defaults.items():
+        if key in config_defaults and getattr(args, key) == default_value:
+            setattr(args, key, config_defaults[key])
+
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -353,6 +392,7 @@ def main():
     logger.info(f"Loaded {len(scenario_map)} scenarios, {len(prompts)} prompts")
     logger.info(f"vLLM URL: {args.vllm_url}")
     logger.info(f"Output: {output_dir}")
+    logger.info("Note: run_online_rl.py collects scored rollouts only; it does not update weights.")
 
     asyncio.run(train(
         vllm_url=args.vllm_url,

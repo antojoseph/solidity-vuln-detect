@@ -16,13 +16,15 @@ deterministic scorer directly (category 40%, explanation 25%, severity 10%,
 line accuracy 15%, exploitability 10%).
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import re
 from pathlib import Path
 from typing import Any
 
-from run_eval_standalone import (
+from audit_core import (
     Episode,
     TOOL_DEFINITIONS_OPENAI,
     build_system_prompt,

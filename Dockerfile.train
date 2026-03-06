@@ -80,29 +80,45 @@ RUN pip install --no-cache-dir \
 CMD ["python3", "-c", "from trl import SFTTrainer; print('SFT ready')"]
 
 # ============================================================
-# GRPO stage — SkyRL + Ray + vLLM
+# GRPO stage — Official SkyRL Docker base
 # ============================================================
-FROM base AS grpo
+FROM novaskyai/skyrl-train-ray-2.51.1-py3.12-cu12.8 AS grpo
 
-# SkyRL from patched fork
+WORKDIR /workspace
+
+# Install SkyRL from source: skyrl-gym (env layer) + skyrl (training framework)
+RUN git clone --depth 1 https://github.com/novasky-ai/SkyRL.git /workspace/SkyRL && \
+    pip install --no-cache-dir --force-reinstall /workspace/SkyRL/skyrl-gym && \
+    pip install --no-cache-dir -e "/workspace/SkyRL[fsdp]" 2>/dev/null || \
+    pip install --no-cache-dir -e /workspace/SkyRL || true
+
+# Only compile for H100 (sm90) — skips sm80/sm100/sm120, 4x faster
+ENV TORCH_CUDA_ARCH_LIST="9.0"
+
+# Install ALL deps that Ray workers will need (runtime pip install doesn't reach them)
 RUN pip install --no-cache-dir \
-    "git+https://github.com/westonbrown/SkyRL.git@open-ctf/v0.3.1-patched#subdirectory=skyrl-train" \
-    "ray[default]>=2.40.0" \
-    "colorama" \
-    "omegaconf" \
-    "hydra-core" \
-    "transformers>=5.2.0" \
-    "scipy>=1.16.0" \
-    "peft>=0.15.0" \
-    "accelerate>=1.4.0"
+    "transformers>=5.2.0" "huggingface-hub>=1.4" \
+    datasets tokenizers \
+    jaxtyping beartype torchdata "scipy>=1.14" \
+    flash-attn wandb \
+    anthropic openai python-dotenv pyyaml jinja2 peft accelerate \
+    omegaconf hydra-core colorama tqdm loguru pandas pyarrow && \
+    pip install --no-cache-dir vllm --extra-index-url https://wheels.vllm.ai/nightly || \
+    pip install --no-cache-dir "vllm>=0.16.0" || true
 
-# Install vLLM (nightly for Qwen3.5 support)
-RUN pip install --no-cache-dir "vllm>=0.16.0" || \
-    pip install --no-cache-dir vllm --pre || \
-    echo "WARNING: vLLM install failed — install manually"
+WORKDIR /workspace/hud
 
-# Apply TrajGym's runtime patches
-RUN bash /workspace/open-trajectory-gym/docker/patches/apply_all_patches.sh || \
-    echo "WARNING: Some patches failed — check logs"
+# Copy project source
+COPY env.py run_eval_standalone.py skyrl_env.py \
+     prepare_skyrl_data.py training.yaml \
+     run_skyrl_train.py run_online_rl.py \
+     test_grpo.py \
+     /workspace/hud/
 
-CMD ["python3", "-c", "import skyrl_gym; import vllm; print('GRPO ready')"]
+# Copy TrajGym source (for config builder, formatters)
+COPY open-trajectory-gym /workspace/open-trajectory-gym
+RUN pip install --no-cache-dir /workspace/open-trajectory-gym 2>/dev/null || true
+
+ENV PYTHONPATH=/workspace/open-trajectory-gym/src:/workspace/hud:$PYTHONPATH
+
+CMD ["python3", "-c", "from skyrl_gym.envs import register; from skyrl_env import SolidityVulnEnv; print('GRPO ready')"]

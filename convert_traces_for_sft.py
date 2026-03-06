@@ -1,14 +1,16 @@
-"""Convert Claude eval traces to SLIME SFT format.
+"""Convert high-quality training traces to structured SFT format.
 
-Reads result files from results/*.json, filters to high-reward traces,
-and converts Anthropic message format to Qwen3's multi-turn chat format
-with tool-calling. Generates loss_mask (1 for assistant, 0 for user/tool).
+Reads result files from results/*.json, filters to high-reward traces from
+train-only scenarios, and converts Anthropic/OpenAI message formats to a
+structured tool-calling chat format.
 
 Usage:
     python convert_traces_for_sft.py
     python convert_traces_for_sft.py --min-reward 0.7 --results-dir results
     python convert_traces_for_sft.py --results-file results/claude-opus-4-6_20260223_062030.json
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -217,6 +219,23 @@ def _passthrough_structured_messages(
     return out
 
 
+
+
+def _load_allowed_scenarios(task_file: str | None, allow_all_scenarios: bool) -> set[str] | None:
+    if allow_all_scenarios:
+        return None
+    if not task_file:
+        raise SystemExit("Provide --task-file or pass --allow-all-scenarios.")
+
+    task_path = Path(task_file)
+    if not task_path.exists():
+        raise SystemExit(f"Task file not found: {task_path}")
+
+    with open(task_path) as f:
+        tasks = json.load(f)
+    return {task.get("args", {}).get("scenario_id", "") for task in tasks if task.get("args", {}).get("scenario_id")}
+
+
 def convert_trace(trace: dict, min_reward: float) -> dict | None:
     """Convert a single trace to structured SFT format.
 
@@ -266,10 +285,12 @@ def convert_trace(trace: dict, min_reward: float) -> dict | None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert Claude traces to SLIME SFT format")
+    parser = argparse.ArgumentParser(description="Convert train-only traces to structured SFT format")
     parser.add_argument("--results-dir", default="results")
     parser.add_argument("--results-file", default=None, help="Specific results file (overrides --results-dir)")
-    parser.add_argument("--output", default="data/slime_sft_traces.jsonl")
+    parser.add_argument("--output", default="data/sft_traces_structured.jsonl")
+    parser.add_argument("--task-file", default="data/tasks_train.json", help="Allowed scenario split (default: train)")
+    parser.add_argument("--allow-all-scenarios", action="store_true", help="Disable split filtering")
     parser.add_argument("--min-reward", type=float, default=0.7)
     args = parser.parse_args()
 
@@ -284,10 +305,12 @@ def main():
         print(f"No result files found in {args.results_dir}")
         return
 
-    # Deduplicate: keep highest-reward trace per scenario_id
+    allowed_scenarios = _load_allowed_scenarios(args.task_file, args.allow_all_scenarios)
+
     best_traces: dict[str, dict] = {}
     total_traces = 0
     total_files = 0
+    skipped_outside_split = 0
 
     for rf in result_files:
         try:
@@ -307,6 +330,10 @@ def main():
                 continue
 
             sid = converted["metadata"]["scenario_id"]
+            if allowed_scenarios is not None and sid not in allowed_scenarios:
+                skipped_outside_split += 1
+                continue
+
             existing = best_traces.get(sid)
             if existing is None or converted["reward"] > existing["reward"]:
                 best_traces[sid] = converted
@@ -320,6 +347,11 @@ def main():
             out.write(json.dumps(trace, ensure_ascii=False) + "\n")
 
     print(f"Processed {total_traces} traces from {total_files} files")
+    if allowed_scenarios is None:
+        print("Split filter: disabled")
+    else:
+        print(f"Split filter: {args.task_file} ({len(allowed_scenarios)} allowed scenarios)")
+        print(f"Skipped {skipped_outside_split} traces outside the allowed split")
     print(f"Filtered to {len(best_traces)} unique scenarios with reward >= {args.min_reward}")
     print(f"Output: {output_path}")
 

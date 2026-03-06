@@ -2,27 +2,44 @@
 
 Train open-source LLMs to find security vulnerabilities in Solidity smart contracts using SFT + Online RL. Built on real DeFi audit data from 10,600+ findings.
 
-## Results
+## Benchmark status
 
-Qwen3.5-9B on 972 eval tasks:
+The checked-in result files include historical runs produced before the dataset and
+SFT split leakage fixes in this repo. Treat those numbers as legacy diagnostics,
+not benchmark-valid headline metrics.
 
-| Model | Mean Reward | Median | Improvement |
-|-------|-------------|--------|-------------|
-| Qwen3.5-9B base | 0.437 | 0.385 | — |
-| Qwen3.5-9B + SFT | **0.534** | **0.470** | **+22%** |
-| Qwen3.5-397B (reference) | 0.503 | — | — |
+To produce comparable results:
 
-SFT on 528 expert traces (Claude + Qwen3.5-397B) brings a 9B model to match or exceed a 44x larger model.
+1. rebuild scenarios with `build_scenarios.py`
+2. regenerate train-only SFT traces with `convert_traces_for_sft.py`
+3. rerun evaluation on the regenerated held-out splits
 
-**Per-difficulty breakdown:**
+## Integrity fixes in this repo
 
-| Difficulty | Base | SFT | Lift |
-|-----------|------|-----|------|
-| Easy (310) | 0.522 | 0.624 | +20% |
-| Medium (316) | 0.444 | 0.532 | +20% |
-| Hard (310) | 0.375 | 0.443 | +18% |
-
-**Top SFT improvements by category:** oracle-manipulation (+0.18), stale-state (+0.16), locked-funds (+0.15), access-control (+0.14), slippage-protection (+0.12).
+- `build_scenarios.py`
+  - deduplicates exact `code_clean` matches
+  - keeps each code / `finding_id` / `(protocol, source_file)` family on one side of the split
+  - excludes any base scenario family that overlaps the held-out clean or OOD sets
+- `convert_traces_for_sft.py`
+  - defaults to `data/tasks_train.json`
+  - filters out traces that are not in the allowed training split unless `--allow-all-scenarios` is used explicitly
+- `run_online_rl.py`
+  - is documented as rollout collection only
+  - does not claim to do weight updates
+- `run_skyrl_train.py`
+  - is the intended launcher for actual online RL weight updates
+- `run_eval_standalone.py` and `run_eval_agentic.py`
+  - resume caches are keyed by provider + model + scenario
+- `run_eval_agentic.py`
+  - uses path ancestry checks instead of string-prefix path validation
+  - separates strict tool-call scoring from assisted free-text extraction metrics
+  - uses literal grep by default and restricts regex complexity
+- `env.py`
+  - parses line ranges such as `10-14`
+  - does not inject a flat line score when the ground truth has no line annotations
+  - prefers finding-level severity when available
+- `skyrl_env.py`
+  - no longer depends on provider SDK imports through `run_eval_standalone.py`
 
 ## How It Works
 
@@ -46,7 +63,7 @@ Agent                          Environment (env.py)
                               + 0.10 × exploitability
 ```
 
-22 vulnerability categories: reentrancy, oracle-manipulation, access-control, flash-loan, precision-rounding, slippage-protection, denial-of-service, integer-overflow, liquidation, and more.
+The scorer has strong support for the core canonical categories (reentrancy, oracle-manipulation, access-control, flash-loan, precision-rounding, slippage-protection, denial-of-service, integer-overflow, liquidation, and more), while the dataset may include additional canonical categories sourced from the raw audit corpus.
 
 ## Training Pipeline
 
@@ -57,28 +74,29 @@ Expert traces (Claude + Qwen3.5-397B)
   convert_traces_for_sft.py → structured tool_calls format
        │
        ▼
-  ┌─────────────────────┐     ┌──────────────────────┐
-  │ Stage 1: SFT        │     │ Stage 2: Online RL   │
-  │ run_sft.py           │────▶│ run_online_rl.py     │
-  │ TRL + LoRA r=128     │     │ RLOO (6 samples/prompt)│
-  │ 528 traces, 3 epochs │     │ 3,834 scenarios       │
-  │ ~47 min on 1xH100    │     │ 8xH100 data-parallel  │
-  └─────────────────────┘     └──────────────────────┘
+  ┌─────────────────────┐     ┌──────────────────────────┐
+  │ Stage 1: SFT        │     │ Stage 2: Online RL       │
+  │ run_sft.py          │────▶│ run_skyrl_train.py       │
+  │ TRL + LoRA r=128    │     │ SkyRL / TrajGym training │
+  │ train-only traces   │     │ weight updates + sync    │
+  └─────────────────────┘     └──────────────────────────┘
        │                              │
        ▼                              ▼
   Eval: run_eval_standalone.py   W&B monitoring
-  (972 tasks, deterministic)     wandb_monitor.py
+  (held-out deterministic split) wandb_monitor.py
 ```
 
 ## Project Structure
 
 ```
+├── audit_core.py                # Shared prompt/tool/episode logic (provider-independent)
 ├── env.py                       # Environment: 4 tools + 5-signal deterministic scorer
-├── skyrl_env.py                 # SkyRL BaseTextEnv adapter (bridges to Episode class)
+├── skyrl_env.py                 # SkyRL BaseTextEnv adapter (no provider SDK dependency)
 ├── run_eval_standalone.py       # Eval harness (Anthropic + OpenAI-compatible APIs)
 ├── run_eval_agentic.py          # Agentic eval (full repo exploration, 186 repos)
 ├── run_sft.py                   # SFT training (TRL SFTTrainer + LoRA)
-├── run_online_rl.py             # Online RL rollouts (RLOO via vLLM API)
+├── run_online_rl.py             # Scored rollout collection / RLOO diagnostics
+├── run_skyrl_train.py           # Actual online RL training with weight updates
 ├── convert_traces_for_sft.py    # Convert Claude/Qwen traces → structured SFT format
 ├── prepare_skyrl_data.py        # Convert tasks → SkyRL prompt JSONL
 ├── training.yaml                # Training config (model, LoRA, SFT, RL params)
@@ -90,11 +108,13 @@ Expert traces (Claude + Qwen3.5-397B)
 ├── run_all.sh                   # Full pipeline launcher (survives SSH drops)
 ├── run_online_rl.sh             # RL-only launcher (detached containers)
 ├── data/                        # Generated datasets (gitignored)
-│   ├── scenarios.json           # ~4,900 scenarios
-│   ├── tasks_train.json         # 3,834 training tasks
-│   ├── tasks_eval.json          # 972 eval tasks
+│   ├── scenarios.json           # regenerated scenario corpus
+│   ├── tasks_train.json         # grouped train split
+│   ├── tasks_eval.json          # grouped held-out eval split
+│   ├── tasks_eval_clean.json    # separate clean held-out split
+│   ├── tasks_eval_ood.json      # separate OOD held-out split
 │   ├── skyrl_prompts.jsonl      # SkyRL RL prompts
-│   └── sft_traces_structured.jsonl  # SFT training data (structured tool_calls)
+│   └── sft_traces_structured.jsonl  # train-only SFT data (structured tool_calls)
 └── open-trajectory-gym/         # TrajGym framework (gitignored submodule)
 ```
 
@@ -119,8 +139,11 @@ python build_scenarios.py /tmp/pvi
 # Generate SkyRL prompts
 python prepare_skyrl_data.py
 
-# Convert expert traces for SFT (requires eval results in results/)
-python convert_traces_for_sft.py --min-reward 0.7
+# Convert expert traces for SFT from train-only scenarios
+python convert_traces_for_sft.py --task-file data/tasks_train.json --min-reward 0.7
+
+# Optional sanity check
+python test_smoke.py
 ```
 
 ### 2. Run Eval (Standalone)
@@ -154,6 +177,12 @@ docker run --rm --gpus device=0 --ipc=host --ulimit memlock=-1 \
 ### 4. Run Online RL
 
 ```bash
+# Real online RL training (weight updates)
+python3 run_skyrl_train.py --model /path/to/model --data data/skyrl_prompts.jsonl --output outputs/rl-train
+
+# Or collect scored rollout batches only
+python3 run_online_rl.py --model /path/to/model --data data/skyrl_prompts.jsonl --output outputs/rl-rollouts
+
 # Full pipeline (vLLM + RL + agentic eval, all detached)
 bash run_all.sh
 
@@ -188,11 +217,11 @@ Deterministic, no LLM-as-judge. Five weighted components:
 
 | Component | Weight | Method |
 |-----------|--------|--------|
-| `category_match` | 40% | Keyword matching against 22 canonical categories |
+| `category_match` | 40% | Canonical category matching with keyword/group fallbacks |
 | `explanation_quality` | 25% | Code references, attack terms, precondition overlap |
-| `line_accuracy` | 15% | F1 score vs ground truth bug lines (±1 tolerance) |
+| `line_accuracy` | 15% | F1 score vs ground truth bug lines (±1 tolerance, skipped when GT lines are absent) |
 | `exploitability` | 10% | Quality of attack_path, prerequisites, impact |
-| `severity_match` | 10% | Distance from expected severity level |
+| `severity_match` | 10% | Distance from finding-level severity when present, else category default |
 
 Penalties: 0.9× for missing structured fields, 0.85× for multi-label, 0.7× for using hints.
 
@@ -204,9 +233,21 @@ Penalties: 0.9× for missing structured fields, 0.85× for multi-label, 0.7× fo
 ## Architecture Notes
 
 - **HUD SDK optional** — `env.py` works standalone (lazy import). HUD integration available but not required.
+- **Provider SDKs isolated from core env logic** — `audit_core.py` and `skyrl_env.py` can be imported without Anthropic installed.
 - **Qwen3.5 native tool calling** — SFT traces use structured `tool_calls` fields. The tokenizer's `apply_chat_template` formats them as `qwen3_coder` XML natively.
 - **vLLM nightly required** — Qwen3.5's hybrid DeltaNet/attention architecture needs vLLM from main branch (pre-0.17.0).
 - **8x GPU data-parallel** — RL rollouts use `vllm serve -dp 8` for 8 replicas of the 9B model (~17GB each).
+
+## Validation
+
+Recommended local checks after changing the benchmark code:
+
+```bash
+python3 -m py_compile audit_core.py build_scenarios.py convert_traces_for_sft.py env.py \
+  run_eval_standalone.py run_eval_agentic.py run_online_rl.py run_skyrl_train.py skyrl_env.py
+
+python3 test_smoke.py
+```
 
 ## License
 

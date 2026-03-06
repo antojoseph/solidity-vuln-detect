@@ -1,56 +1,74 @@
-"""Real Online RL training using SkyRL with weight updates.
+#!/usr/bin/env python3
+"""Launch SkyRL RLOO training for Solidity vulnerability detection.
 
-Registers SolidityVulnEnv with SkyRL, builds the training config from
-training.yaml, and launches the full RL loop:
-  vLLM generates → SolidityVulnEnv scores → FSDP2 trainer updates weights → sync
+Uses the official SkyRL API (Hydra CLI via main_base entrypoint).
+Registers SolidityVulnEnv before training starts.
 
-This is the actual RL training (not just rollout collection).
-Requires the GRPO Docker image with SkyRL + Ray + vLLM installed.
-
-Usage:
+Usage (inside Docker):
     python3 run_skyrl_train.py \
         --model /workspace/outputs/sft-9b-merged \
         --data /workspace/hud/data/skyrl_prompts.jsonl \
         --output /workspace/outputs/rl-train \
-        --config /workspace/hud/training.yaml
+        --num-gpus 8
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import logging
 import os
+import runpy
 import sys
-import tempfile
 from pathlib import Path
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def convert_data_for_skyrl(input_path: str, output_path: str, env_id: str = "solidity-vuln"):
-    """Convert skyrl_prompts.jsonl to SkyRL's expected format.
+def convert_data_for_skyrl(input_path: str, output_dir: str, env_id: str = "solidity-vuln"):
+    """Convert skyrl_prompts.jsonl to SkyRL parquet format.
 
-    SkyRL dataset needs each row to have extras.env_class matching the
-    registered env ID, plus the prompt as a conversation.
+    SkyRL expects:
+    - prompt: list of message dicts [{"role": "user", "content": "..."}]
+    - env_class: string at top level (not nested)
+    - scenario metadata flattened as top-level columns
     """
-    count = 0
-    with open(input_path) as fin, open(output_path, "w") as fout:
-        for line in fin:
+    import pandas as pd
+
+    records = []
+    with open(input_path) as f:
+        for line in f:
             record = json.loads(line)
             extras = record.get("extras", {})
-            extras["env_class"] = env_id
+            # SkyRL prompt format: just user message (env adds system prompt in init())
+            prompt = [{"role": "user", "content": "Begin your audit."}]
+            records.append({
+                "prompt": prompt,
+                "env_class": env_id,
+                "scenario_id": extras.get("scenario_id", ""),
+                "difficulty": extras.get("difficulty", ""),
+                "category": extras.get("category", ""),
+            })
 
-            # SkyRL expects prompt as conversation messages
-            skyrl_record = {
-                "prompt": record.get("prompt", []),
-                "extras": extras,
-            }
-            fout.write(json.dumps(skyrl_record) + "\n")
-            count += 1
-    logger.info(f"Converted {count} prompts to SkyRL format at {output_path}")
-    return count
+    df = pd.DataFrame(records)
+    out_path = os.path.join(output_dir, "train.parquet")
+    df.to_parquet(out_path)
+    logger.info(f"Converted {len(records)} prompts to {out_path}")
+    return out_path
+
+
+def load_training_config(config_path: str) -> dict:
+    if yaml is None:
+        logger.warning("PyYAML not installed; using built-in SkyRL launcher defaults.")
+        return {}
+    with open(config_path) as f:
+        return yaml.safe_load(f) or {}
 
 
 def build_config(
@@ -58,181 +76,154 @@ def build_config(
     data_path: str,
     output_dir: str,
     config_path: str,
-) -> dict:
-    """Build the SkyRL config dict from our training.yaml.
-
-    Uses TrajGym's config builder when available, falls back to manual
-    construction from training.yaml.
-    """
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
-
-    online_rl = config.get("online_rl", {})
-    lora_cfg = config.get("lora", {})
-    model_cfg = config.get("model", {})
-
-    try:
-        # Try using TrajGym's config builder (most complete)
-        from trajgym.training.online_rl.config_builder import _build_skyrl_config
-        logger.info("Using TrajGym config builder")
-        skyrl_config = _build_skyrl_config(model_path, output_dir, config, data_path)
-        return skyrl_config
-    except ImportError:
-        logger.info("TrajGym not available, building config manually")
-
-    # Manual SkyRL config construction
-    num_generations = int(online_rl.get("num_generations", 6))
-    lora_rank = int(lora_cfg.get("r", 128))
-
-    skyrl_config = {
-        "model": {
-            "model_path": model_path,
-            "enable_lora": True,
-            "lora_rank": lora_rank,
-            "lora_alpha": int(lora_cfg.get("alpha", 256)),
-            "lora_dropout": float(lora_cfg.get("dropout", 0)),
-            "target_modules": lora_cfg.get("target_modules", [
-                "q_proj", "k_proj", "v_proj", "o_proj",
-                "gate_proj", "up_proj", "down_proj",
-            ]),
-            "trust_remote_code": True,
-            "dtype": "bfloat16",
-        },
-        "generator": {
-            "max_turns": int(online_rl.get("max_tool_calling_iterations", 10)),
-            "max_prompt_length": int(online_rl.get("max_prompt_length", 16384)),
-            "max_response_length": int(online_rl.get("max_completion_length", 8192)),
-            "max_input_length": int(online_rl.get("max_prompt_length", 16384)),
-            "num_generations": num_generations,
-            "temperature": float(online_rl.get("generation_temperature", 0.7)),
-            "top_p": float(online_rl.get("generation_top_p", 0.95)),
-            "top_k": int(online_rl.get("generation_top_k", 20)),
-            "stop": online_rl.get("generation_stop", ["</tool_call>", "<|im_end|>"]),
-            "tool_call_format": online_rl.get("tool_call_format", "qwen3_coder"),
-            "strip_think": bool(online_rl.get("strip_think", True)),
-            "step_wise_trajectories": bool(online_rl.get("step_wise_trajectories", False)),
-            "native_tool_schemas": bool(online_rl.get("native_tool_schemas", False)),
-        },
-        "trainer": {
-            "learning_rate": float(online_rl.get("learning_rate", 5e-6)),
-            "warmup_ratio": float(online_rl.get("warmup_ratio", 0.1)),
-            "weight_decay": float(online_rl.get("weight_decay", 0.1)),
-            "max_grad_norm": float(online_rl.get("max_grad_norm", 1.0)),
-            "gradient_accumulation_steps": int(online_rl.get("gradient_accumulation_steps", 6)),
-            "batch_size": int(online_rl.get("batch_size", 1)),
-            "epochs": int(online_rl.get("epochs", 1)),
-        },
-        "algorithm": {
-            "loss_type": online_rl.get("loss_type", "dapo"),
-            "advantage_estimator": online_rl.get("advantage_estimator", "rloo"),
-            "epsilon_high": float(online_rl.get("epsilon_high", 0.28)),
-            "beta": float(online_rl.get("beta", 0.0)),
-        },
-        "data": {
-            "data_path": data_path,
-        },
-        "output": {
-            "output_dir": output_dir,
-            "save_steps": int(config.get("output", {}).get("save_steps", 25)),
-            "logging_steps": int(config.get("output", {}).get("logging_steps", 1)),
-        },
-    }
-    return skyrl_config
-
-
-def run_training(
-    model_path: str,
-    data_path: str,
-    output_dir: str,
-    config_path: str,
+    num_gpus: int = 8,
     env_id: str = "solidity-vuln",
-):
-    """Main training function — registers env and launches SkyRL."""
+) -> dict:
+    config = load_training_config(config_path)
+    online_rl = config.get("online_rl", {})
+    lora = config.get("lora", {})
+    output = config.get("output", {})
 
-    # Convert data
-    skyrl_data_path = os.path.join(output_dir, "skyrl_data.jsonl")
-    os.makedirs(output_dir, exist_ok=True)
-    convert_data_for_skyrl(data_path, skyrl_data_path, env_id)
+    if num_gpus < 2:
+        num_inference_gpus = 1
+        num_train_gpus = 1
+        colocate_all = True
+    else:
+        num_inference_gpus = max(1, num_gpus // 2)
+        num_train_gpus = max(1, num_gpus - num_inference_gpus)
+        colocate_all = False
 
-    # Build config
-    config = build_config(model_path, skyrl_data_path, output_dir, config_path)
-    logger.info(f"SkyRL config built. Model: {model_path}, Data: {skyrl_data_path}")
+    return {
+        "model_path": model_path,
+        "data_path": data_path,
+        "output_dir": output_dir,
+        "env_id": env_id,
+        "num_gpus": num_gpus,
+        "num_inference_gpus": num_inference_gpus,
+        "num_train_gpus": num_train_gpus,
+        "colocate_all": colocate_all,
+        "epochs": int(online_rl.get("epochs", 1)),
+        "batch_size": int(online_rl.get("batch_size", 1)),
+        "gradient_accumulation_steps": int(online_rl.get("gradient_accumulation_steps", 1)),
+        "learning_rate": float(online_rl.get("learning_rate", 5e-6)),
+        "max_tool_calling_iterations": int(online_rl.get("max_tool_calling_iterations", 10)),
+        "max_completion_length": int(online_rl.get("max_completion_length", 4096)),
+        "max_prompt_length": int(online_rl.get("max_prompt_length", 8192)),
+        "num_generations": int(online_rl.get("num_generations", 6)),
+        "generation_temperature": float(online_rl.get("generation_temperature", 0.7)),
+        "generation_top_p": float(online_rl.get("generation_top_p", 0.95)),
+        "generation_top_k": int(online_rl.get("generation_top_k", 20)),
+        "generation_stop": online_rl.get("generation_stop", ["</tool_call>", "<|im_end|>"]),
+        "advantage_estimator": online_rl.get("advantage_estimator", "rloo"),
+        "beta": float(online_rl.get("beta", 0.0)),
+        "lora_rank": int(lora.get("r", 128)),
+        "lora_alpha": int(lora.get("alpha", 256)),
+        "save_steps": int(output.get("save_steps", 25)),
+        "logging_steps": int(output.get("logging_steps", 1)),
+        "strip_think": bool(online_rl.get("strip_think", True)),
+    }
 
-    # Load training.yaml for reward config
-    with open(config_path) as f:
-        training_config = yaml.safe_load(f)
-    reward_config = training_config.get("reward", {})
-    online_rl_cfg = training_config.get("online_rl", {})
 
+def build_skyrl_overrides(resolved: dict) -> list[str]:
+    stop_strings = json.dumps(resolved["generation_stop"])
+    return [
+        f"data.train_data=['{resolved['data_path']}']",
+        f"data.val_data=['{resolved['data_path']}']",
+        f"trainer.policy.model.path={resolved['model_path']}",
+        f"trainer.policy.model.lora.rank={resolved['lora_rank']}",
+        f"trainer.policy.model.lora.alpha={resolved['lora_alpha']}",
+        "trainer.strategy=fsdp2",
+        f"trainer.placement.policy_num_gpus_per_node={resolved['num_train_gpus']}",
+        f"trainer.placement.ref_num_gpus_per_node={resolved['num_train_gpus']}",
+        f"trainer.placement.colocate_all={'true' if resolved['colocate_all'] else 'false'}",
+        f"trainer.epochs={resolved['epochs']}",
+        f"trainer.train_batch_size={resolved['batch_size']}",
+        f"trainer.policy_mini_batch_size={resolved['batch_size']}",
+        "trainer.micro_forward_batch_size_per_gpu=1",
+        "trainer.micro_train_batch_size_per_gpu=1",
+        f"trainer.update_epochs_per_batch={resolved['gradient_accumulation_steps']}",
+        f"trainer.max_prompt_length={resolved['max_prompt_length']}",
+        f"trainer.policy.optimizer_config.lr={resolved['learning_rate']}",
+        f"trainer.algorithm.advantage_estimator={resolved['advantage_estimator']}",
+        f"trainer.algorithm.use_kl_loss={'true' if resolved['beta'] > 0 else 'false'}",
+        f"trainer.algorithm.use_kl_in_reward={'true' if resolved['beta'] > 0 else 'false'}",
+        f"generator.inference_engine.num_engines={resolved['num_inference_gpus']}",
+        "generator.inference_engine.tensor_parallel_size=1",
+        "generator.inference_engine.backend=vllm",
+        "generator.inference_engine.run_engines_locally=true",
+        "generator.inference_engine.weight_sync_backend=nccl",
+        "generator.inference_engine.async_engine=true",
+        "generator.inference_engine.gpu_memory_utilization=0.85",
+        "generator.batched=true",
+        f"generator.max_turns={resolved['max_tool_calling_iterations']}",
+        f"generator.n_samples_per_prompt={resolved['num_generations']}",
+        f"generator.sampling_params.max_generate_length={resolved['max_completion_length']}",
+        f"generator.sampling_params.temperature={resolved['generation_temperature']}",
+        f"generator.sampling_params.top_p={resolved['generation_top_p']}",
+        f"generator.sampling_params.top_k={resolved['generation_top_k']}",
+        f"generator.sampling_params.stop={stop_strings}",
+        f"environment.env_class={resolved['env_id']}",
+        f"trainer.ckpt_interval={resolved['save_steps']}",
+        f"trainer.ckpt_path={resolved['output_dir']}/checkpoints",
+        "trainer.eval_before_train=false",
+        "trainer.logger=wandb",
+        "trainer.project_name=solidity-vuln-detect",
+        f"trainer.default_hdfs_dir={resolved['output_dir']}",
+    ]
+
+
+def launch_training(resolved: dict) -> None:
+    from skyrl_gym.envs import register
+    from skyrl_env import SolidityVulnEnv
+
+    register(
+        id=resolved["env_id"],
+        entry_point=SolidityVulnEnv,
+        kwargs={
+            "max_turns": resolved["max_tool_calling_iterations"],
+            "strip_think": resolved["strip_think"],
+        },
+    )
+    logger.info("Registered %s env with SkyRL", resolved["env_id"])
+
+    overrides = build_skyrl_overrides(resolved)
+    argv = ["skyrl.train.entrypoints.main_base", *overrides]
+    logger.info("Launching SkyRL with %d overrides", len(overrides))
+
+    original_argv = sys.argv[:]
     try:
-        # Try TrajGym's full runtime (handles Ray, env registration, everything)
-        from trajgym.training.online_rl.runtime import _run_skyrl_training
-        logger.info("Using TrajGym SkyRL runtime")
-
-        # Override the env class — TrajGym defaults to TrajGymTextEnv,
-        # but we register SolidityVulnEnv instead.
-        # We do this by monkey-patching the import in the Ray remote function.
-        # The cleaner way is to pass agent_class, but SolidityVulnEnv
-        # is a BaseTextEnv, not a StepAgent.
-
-        # Actually, the cleanest approach: we register our env BEFORE
-        # calling _run_skyrl_training, and modify the config to use our env_id.
-        import ray
-        from skyrl_gym.envs import register as skyrl_register
-        from skyrl_env import SolidityVulnEnv
-
-        # Pre-register our env (will be re-registered inside Ray remote)
-        skyrl_register(
-            id=env_id,
-            entry_point=SolidityVulnEnv,
-            kwargs={
-                "max_turns": int(online_rl_cfg.get("max_tool_calling_iterations", 10)),
-                "tool_call_format": online_rl_cfg.get("tool_call_format", "qwen3_coder"),
-                "strip_think": bool(online_rl_cfg.get("strip_think", True)),
-            },
-        )
-        logger.info(f"Registered {env_id} with SkyRL (entry_point=SolidityVulnEnv)")
-
-        _run_skyrl_training(
-            config=config,
-            reward_config=reward_config,
-            agent_class=None,  # Not using a StepAgent — our env IS the BaseTextEnv
-            agent_kwargs=None,
-            use_new_inference=bool(online_rl_cfg.get("use_new_inference", True)),
-            trajectory_output_dir=os.path.join(output_dir, "trajectories"),
-            pytorch_cuda_alloc_conf=online_rl_cfg.get("pytorch_cuda_alloc_conf"),
-            horizon_schedule=online_rl_cfg.get("horizon_schedule"),
-            hard_mask_statuses=online_rl_cfg.get("hard_mask_statuses", []),
-            positive_only_until_step=int(online_rl_cfg.get("positive_only_until_step", 50)),
-            positive_only_reward_floor=float(online_rl_cfg.get("positive_only_reward_floor", 0.0)),
-        )
-
-    except ImportError as e:
-        logger.error(f"TrajGym runtime not available: {e}")
-        logger.error("Install TrajGym or use the GRPO Docker image")
-        sys.exit(1)
+        sys.argv = argv
+        runpy.run_module("skyrl.train.entrypoints.main_base", run_name="__main__")
+    finally:
+        sys.argv = original_argv
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Real Online RL with SkyRL weight updates")
+    parser = argparse.ArgumentParser(description="SkyRL RLOO training")
     parser.add_argument("--model", required=True, help="Path to SFT-merged model")
     parser.add_argument("--data", required=True, help="SkyRL prompts JSONL")
-    parser.add_argument("--output", required=True, help="Output directory")
+    parser.add_argument("--output", required=True, help="Output/checkpoint directory")
     parser.add_argument("--config", default="training.yaml", help="Training config")
+    parser.add_argument("--num-gpus", type=int, default=8)
     args = parser.parse_args()
 
-    logger.info(f"Starting Online RL training")
-    logger.info(f"  Model: {args.model}")
-    logger.info(f"  Data: {args.data}")
-    logger.info(f"  Output: {args.output}")
-    logger.info(f"  Config: {args.config}")
+    os.makedirs(args.output, exist_ok=True)
 
-    run_training(
+    data_path = convert_data_for_skyrl(args.data, args.output)
+    resolved = build_config(
         model_path=args.model,
-        data_path=args.data,
+        data_path=data_path,
         output_dir=args.output,
         config_path=args.config,
+        num_gpus=args.num_gpus,
     )
+    logger.info(
+        "Launching SkyRL RLOO with %d GPUs (%d inference + %d train)",
+        resolved["num_gpus"],
+        resolved["num_inference_gpus"],
+        resolved["num_train_gpus"],
+    )
+    launch_training(resolved)
 
 
 if __name__ == "__main__":

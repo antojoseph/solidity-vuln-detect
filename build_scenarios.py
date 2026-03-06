@@ -12,6 +12,9 @@ Outputs:
     data/tasks_eval.json     — 20% eval split (HUD task format)
 """
 
+from __future__ import annotations
+
+import hashlib
 import json
 import random
 import re
@@ -728,6 +731,204 @@ def _load_optional_scenarios(path: Path, scenario_type: str) -> list[dict]:
     return scenarios
 
 
+def _scenario_code_hash(scenario: dict) -> str:
+    return hashlib.sha256(scenario.get("code_clean", "").encode("utf-8")).hexdigest()
+
+
+def _scenario_rank(scenario: dict) -> tuple:
+    return (
+        1 if scenario.get("source_file") else 0,
+        1 if scenario.get("bug_lines") else 0,
+        scenario.get("quality_score", 0),
+        len(scenario.get("code_clean", "")),
+        scenario["id"],
+    )
+
+
+def _dedup_scenarios_by_code(scenarios: list[dict]) -> tuple[list[dict], int]:
+    grouped = defaultdict(list)
+    for scenario in scenarios:
+        grouped[_scenario_code_hash(scenario)].append(scenario)
+
+    deduped = []
+    removed = 0
+    for items in grouped.values():
+        best = max(items, key=_scenario_rank)
+        deduped.append(best)
+        removed += len(items) - 1
+
+    deduped.sort(key=lambda scenario: scenario["id"])
+    return deduped, removed
+
+
+def _scenario_group_keys(scenario: dict) -> list[tuple]:
+    keys = [("code", _scenario_code_hash(scenario))]
+    finding_id = scenario.get("finding_id")
+    if finding_id:
+        keys.append(("finding", finding_id))
+    source_file = scenario.get("source_file")
+    if source_file:
+        repo_key = scenario.get("protocol_name") or scenario.get("protocol_type") or ""
+        keys.append(("file", repo_key, source_file))
+    return keys
+
+
+def _build_leakage_groups(scenarios: list[dict]) -> list[list[dict]]:
+    parents = list(range(len(scenarios)))
+
+    def find(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parents[right_root] = left_root
+
+    seen: dict[tuple, int] = {}
+    for index, scenario in enumerate(scenarios):
+        for key in _scenario_group_keys(scenario):
+            previous = seen.get(key)
+            if previous is None:
+                seen[key] = index
+            else:
+                union(index, previous)
+
+    grouped = defaultdict(list)
+    for index, scenario in enumerate(scenarios):
+        grouped[find(index)].append(scenario)
+    return list(grouped.values())
+
+
+def _exclude_reserved_overlap(
+    scenarios: list[dict],
+    reserved_scenarios: list[dict],
+) -> tuple[list[dict], int]:
+    if not reserved_scenarios:
+        return scenarios, 0
+
+    reserved_keys = {
+        key
+        for scenario in reserved_scenarios
+        for key in _scenario_group_keys(scenario)
+    }
+    filtered = []
+    removed = 0
+    for scenario in scenarios:
+        if any(key in reserved_keys for key in _scenario_group_keys(scenario)):
+            removed += 1
+            continue
+        filtered.append(scenario)
+    return filtered, removed
+
+
+def _category_counts(items: list[dict]) -> dict[str, int]:
+    counts = defaultdict(int)
+    for item in items:
+        counts[item["canonical_category"]] += 1
+    return dict(counts)
+
+
+def _split_grouped_scenarios(
+    scenarios: list[dict],
+    eval_fraction: float = 0.2,
+    seed: int = 42,
+) -> tuple[list[str], list[str]]:
+    rng = random.Random(seed)
+    groups = _build_leakage_groups(scenarios)
+    rng.shuffle(groups)
+    groups.sort(key=lambda group: (-len(group), min(item["id"] for item in group)))
+
+    totals = _category_counts(scenarios)
+    targets = {cat: count * eval_fraction for cat, count in totals.items()}
+    required_eval = {cat: 1 for cat, count in totals.items() if count > 1}
+    eval_target_total = round(len(scenarios) * eval_fraction)
+
+    eval_counts = defaultdict(int)
+    train_groups: list[list[dict]] = []
+    eval_groups: list[list[dict]] = []
+    eval_total = 0
+
+    def score_assignment(group: list[dict], assign_to_eval: bool) -> float:
+        group_counts = _category_counts(group)
+        trial_counts = defaultdict(int, eval_counts)
+        trial_total = eval_total
+        if assign_to_eval:
+            for cat, count in group_counts.items():
+                trial_counts[cat] += count
+            trial_total += len(group)
+
+        category_cost = sum(abs(trial_counts[cat] - targets[cat]) for cat in totals)
+        total_cost = abs(trial_total - eval_target_total)
+        return category_cost + 0.25 * total_cost
+
+    for group in groups:
+        score_eval = score_assignment(group, True)
+        score_train = score_assignment(group, False)
+        choose_eval = score_eval < score_train or (score_eval == score_train and eval_total < eval_target_total)
+        if choose_eval:
+            eval_groups.append(group)
+            for cat, count in _category_counts(group).items():
+                eval_counts[cat] += count
+            eval_total += len(group)
+        else:
+            train_groups.append(group)
+
+    missing = [cat for cat, minimum in required_eval.items() if eval_counts[cat] < minimum]
+    for cat in missing:
+        best_index = None
+        best_delta = None
+        for index, group in enumerate(train_groups):
+            group_counts = _category_counts(group)
+            if cat not in group_counts:
+                continue
+            current_gap = abs(eval_counts[cat] - targets[cat])
+            new_gap = abs(eval_counts[cat] + group_counts[cat] - targets[cat])
+            delta = (new_gap - current_gap, len(group))
+            if best_delta is None or delta < best_delta:
+                best_delta = delta
+                best_index = index
+        if best_index is None:
+            continue
+        group = train_groups.pop(best_index)
+        eval_groups.append(group)
+        for group_cat, count in _category_counts(group).items():
+            eval_counts[group_cat] += count
+
+    train_ids = sorted(item["id"] for group in train_groups for item in group)
+    eval_ids = sorted(item["id"] for group in eval_groups for item in group)
+    return train_ids, eval_ids
+
+
+def _measure_split_overlap(scenarios: list[dict], train_ids: list[str], eval_ids: list[str]) -> dict[str, int]:
+    scenario_map = {scenario["id"]: scenario for scenario in scenarios}
+    train = [scenario_map[sid] for sid in train_ids]
+    eval_set = [scenario_map[sid] for sid in eval_ids]
+
+    train_code = {_scenario_code_hash(scenario) for scenario in train}
+    train_findings = {scenario.get("finding_id") for scenario in train if scenario.get("finding_id")}
+    train_files = {
+        ((scenario.get("protocol_name") or scenario.get("protocol_type") or ""), scenario.get("source_file"))
+        for scenario in train
+        if scenario.get("source_file")
+    }
+
+    return {
+        "eval_total": len(eval_set),
+        "code_overlap": sum(1 for scenario in eval_set if _scenario_code_hash(scenario) in train_code),
+        "finding_overlap": sum(1 for scenario in eval_set if scenario.get("finding_id") in train_findings and scenario.get("finding_id")),
+        "file_overlap": sum(
+            1
+            for scenario in eval_set
+            if scenario.get("source_file")
+            and ((scenario.get("protocol_name") or scenario.get("protocol_type") or ""), scenario.get("source_file")) in train_files
+        ),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
@@ -908,14 +1109,24 @@ def main():
     print(f"  From content snippets: {source_counts['snippet']}")
     print(f"  Skipped (no code / low quality): {source_counts['skipped']}")
 
+    deduped_base_scenarios, deduped_count = _dedup_scenarios_by_code(all_scenarios)
+    if deduped_count:
+        print(f"Deduplicated {deduped_count} exact code duplicates from base scenarios")
+
     # Load optional clean / OOD scenarios
     clean_scenarios = _load_optional_scenarios(data_dir / "clean_scenarios.json", "clean")
     ood_scenarios = _load_optional_scenarios(data_dir / "ood_scenarios.json", "ood")
-
-    # Clean scenarios join the main pool (train/eval split).
-    # OOD scenarios go into scenarios.json but get their own eval file only.
-    all_scenarios.extend(clean_scenarios)
-    all_scenarios.extend(ood_scenarios)
+    reserved_scenarios = clean_scenarios + ood_scenarios
+    deduped_base_scenarios, reserved_overlap_count = _exclude_reserved_overlap(
+        deduped_base_scenarios,
+        reserved_scenarios,
+    )
+    if reserved_overlap_count:
+        print(
+            "Removed "
+            f"{reserved_overlap_count} base scenarios that overlapped clean/OOD held-out splits"
+        )
+    all_scenarios = deduped_base_scenarios + reserved_scenarios
 
     if clean_scenarios:
         print(f"Loaded {len(clean_scenarios)} clean scenarios from data/clean_scenarios.json")
@@ -943,25 +1154,14 @@ def main():
     for sev, count in sorted(severity_counts.items()):
         print(f"  {sev}: {count}")
 
-    # Stratified train/eval split (80/20) — excludes OOD scenarios
-    random.seed(42)
-    ood_ids = {s["id"] for s in ood_scenarios}
-    by_category = defaultdict(list)
-    for s in all_scenarios:
-        if s["id"] not in ood_ids:
-            by_category[s["canonical_category"]].append(s)
-
-    train_ids = []
-    eval_ids = []
-    for cat, items in by_category.items():
-        random.shuffle(items)
-        split_point = max(1, int(len(items) * 0.8))
-        for s in items[:split_point]:
-            train_ids.append(s["id"])
-        for s in items[split_point:]:
-            eval_ids.append(s["id"])
+    train_ids, eval_ids = _split_grouped_scenarios(deduped_base_scenarios, eval_fraction=0.2, seed=42)
+    overlap_stats = _measure_split_overlap(deduped_base_scenarios, train_ids, eval_ids)
 
     print(f"\nSplit: {len(train_ids)} train, {len(eval_ids)} eval")
+    print("Leakage audit on split:")
+    print(f"  Eval code overlap in train: {overlap_stats['code_overlap']}/{overlap_stats['eval_total']}")
+    print(f"  Eval finding_id overlap in train: {overlap_stats['finding_overlap']}/{overlap_stats['eval_total']}")
+    print(f"  Eval (protocol, file) overlap in train: {overlap_stats['file_overlap']}/{overlap_stats['eval_total']}")
 
     # Write outputs
     data_dir.mkdir(exist_ok=True)

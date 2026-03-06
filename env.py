@@ -8,6 +8,8 @@ Scenario: detect-vuln (setup → agent audits → score)
 Scoring: deterministic (no LLM), weighted subscores
 """
 
+from __future__ import annotations
+
 import json
 import random
 import re
@@ -37,6 +39,39 @@ def _load_scenarios() -> list[dict]:
         with open(DATA_PATH) as f:
             _ALL_SCENARIOS = json.load(f)
     return _ALL_SCENARIOS
+
+
+def _parse_affected_lines(value: str | list[int] | list[str] | None) -> list[int]:
+    """Parse line specs like ``10,12,14`` and ``10-14`` into sorted ints."""
+    if value is None:
+        return []
+
+    if isinstance(value, list):
+        parsed: list[int] = []
+        for item in value:
+            parsed.extend(_parse_affected_lines(item))
+        return sorted(set(parsed))
+
+    text = str(value).strip()
+    if not text:
+        return []
+
+    parsed = set()
+    for token in re.findall(r"\d+\s*-\s*\d+|\d+", text):
+        if "-" not in token:
+            parsed.add(int(token))
+            continue
+
+        start_text, end_text = re.split(r"\s*-\s*", token, maxsplit=1)
+        start = int(start_text)
+        end = int(end_text)
+        if end < start:
+            start, end = end, start
+        if end - start > 200:
+            end = start + 200
+        parsed.update(range(start, end + 1))
+
+    return sorted(parsed)
 
 
 # ---------------------------------------------------------------------------
@@ -230,17 +265,11 @@ if _HUD_AVAILABLE:
         impact: str = "",
     ) -> str:
         """Submit your vulnerability analysis."""
-        parsed_lines = []
-        if affected_lines.strip():
-            for part in affected_lines.split(","):
-                part = part.strip()
-                if part.isdigit():
-                    parsed_lines.append(int(part))
         _current["_submission"] = {
             "vulnerability_type": vulnerability_type,
             "explanation": explanation,
             "severity": severity.upper(),
-            "affected_lines": parsed_lines,
+            "affected_lines": _parse_affected_lines(affected_lines),
             "attack_path": attack_path,
             "prerequisites": prerequisites,
             "impact": impact,
@@ -281,61 +310,23 @@ if _HUD_AVAILABLE:
                 info={"scenario_id": _current["id"]},
             )
             return
-        cat_score = _score_category(
-            submission["vulnerability_type"],
-            _current["category_slug"],
-            _current["canonical_category"],
+        scored = evaluate_submission(
+            _current,
+            submission,
+            hints_used=_hints_used,
+            code_read=_code_read,
         )
-        expl_score = _score_explanation(submission["explanation"], _current)
-        sev_score = _score_severity(submission["severity"], _current)
-        line_score = _score_lines(submission["affected_lines"], _current.get("bug_lines", []))
-        exploit_score = _score_exploitability(
-            submission.get("attack_path", ""),
-            submission.get("prerequisites", ""),
-            submission.get("impact", ""),
-            ground_canonical=_current["canonical_category"],
-        )
-        schema_penalty = 1.0
-        if _current["canonical_category"] != "no-vulnerability":
-            if all(not submission.get(f, "").strip() for f in ("attack_path", "prerequisites", "impact")):
-                schema_penalty *= 0.9
-        if "," in submission["vulnerability_type"]:
-            schema_penalty *= 0.85
-        raw = (
-            0.40 * cat_score + 0.25 * expl_score + 0.10 * sev_score
-            + 0.15 * line_score + 0.10 * exploit_score
-        )
-        hint_penalty = 0.7 if _hints_used else 1.0
-        final = round(raw * schema_penalty * hint_penalty, 4)
         yield EvaluationResult(
-            reward=final, done=True,
-            content=(
-                f"Submitted: {submission['vulnerability_type']} "
-                f"(expected: {_current['canonical_category']})\n"
-                f"Scores — cat: {cat_score:.2f}, expl: {expl_score:.2f}, "
-                f"sev: {sev_score:.2f}, lines: {line_score:.2f}, "
-                f"exploit: {exploit_score:.2f}\n"
-                f"Final reward: {final}"
-            ),
+            reward=scored["reward"], done=True,
+            content=scored["content"],
             subscores=[
-                SubScore(name="category_match", weight=0.40, value=cat_score),
-                SubScore(name="explanation_quality", weight=0.25, value=expl_score),
-                SubScore(name="severity_match", weight=0.10, value=sev_score),
-                SubScore(name="line_accuracy", weight=0.15, value=line_score),
-                SubScore(name="exploitability", weight=0.10, value=exploit_score),
+                SubScore(name="category_match", weight=0.40, value=scored["subscores"]["category_match"]),
+                SubScore(name="explanation_quality", weight=0.25, value=scored["subscores"]["explanation_quality"]),
+                SubScore(name="severity_match", weight=0.10, value=scored["subscores"]["severity_match"]),
+                SubScore(name="line_accuracy", weight=0.15, value=scored["subscores"].get("line_accuracy") or 0.0),
+                SubScore(name="exploitability", weight=0.10, value=scored["subscores"]["exploitability"]),
             ],
-            info={
-                "scenario_id": _current["id"],
-                "canonical_category": _current["canonical_category"],
-                "difficulty": _current["difficulty"],
-                "hints_used": _hints_used,
-                "code_read": _code_read,
-                "schema_penalty": schema_penalty,
-                "submitted_type": submission["vulnerability_type"],
-                "submitted_severity": submission["severity"],
-                "submitted_lines": submission["affected_lines"],
-                "ground_truth_lines": _current.get("bug_lines", []),
-            },
+            info=scored["info"],
         )
 
 
@@ -512,11 +503,10 @@ def _score_severity(submitted: str, scenario: dict) -> float:
     return 0.1
 
 
-def _score_lines(submitted: list[int], ground_truth: list[int]) -> float:
+def _score_lines(submitted: list[int], ground_truth: list[int]) -> float | None:
     """Score affected line identification via overlap."""
     if not ground_truth:
-        # No ground truth — give flat 0.5 (no noise from unannotated scenarios)
-        return 0.5
+        return None
 
     if not submitted:
         return 0.0
@@ -524,7 +514,6 @@ def _score_lines(submitted: list[int], ground_truth: list[int]) -> float:
     gt_set = set(ground_truth)
     sub_set = set(submitted)
 
-    # Allow ±1 line tolerance
     expanded_gt = set()
     for line in gt_set:
         expanded_gt.update([line - 1, line, line + 1])
@@ -537,6 +526,100 @@ def _score_lines(submitted: list[int], ground_truth: list[int]) -> float:
         return 0.0
     f1 = 2 * precision * recall / (precision + recall)
     return round(f1, 4)
+
+
+def evaluate_submission(
+    scenario: dict,
+    submission: dict | None,
+    *,
+    hints_used: bool = False,
+    code_read: bool = False,
+) -> dict:
+    """Score a submission against a scenario using the shared reward logic."""
+    if not submission:
+        return {
+            "reward": 0.0,
+            "subscores": {},
+            "info": {"scenario_id": scenario["id"], "error": "no_submission"},
+            "content": "No finding was submitted.",
+        }
+
+    cat_score = _score_category(
+        submission["vulnerability_type"],
+        scenario["category_slug"],
+        scenario["canonical_category"],
+    )
+    expl_score = _score_explanation(submission["explanation"], scenario)
+    sev_score = _score_severity(submission["severity"], scenario)
+    line_score = _score_lines(
+        submission["affected_lines"],
+        scenario.get("bug_lines", []),
+    )
+    exploit_score = _score_exploitability(
+        submission.get("attack_path", ""),
+        submission.get("prerequisites", ""),
+        submission.get("impact", ""),
+        ground_canonical=scenario["canonical_category"],
+    )
+
+    schema_penalty = 1.0
+    if scenario["canonical_category"] != "no-vulnerability":
+        if all(not submission.get(f, "").strip() for f in ("attack_path", "prerequisites", "impact")):
+            schema_penalty *= 0.9
+    if "," in submission["vulnerability_type"]:
+        schema_penalty *= 0.85
+
+    weighted_scores = {
+        "category_match": (0.40, cat_score),
+        "explanation_quality": (0.25, expl_score),
+        "severity_match": (0.10, sev_score),
+        "line_accuracy": (0.15, line_score),
+        "exploitability": (0.10, exploit_score),
+    }
+    numerator = 0.0
+    denominator = 0.0
+    for weight, score in weighted_scores.values():
+        if score is None:
+            continue
+        numerator += weight * score
+        denominator += weight
+    raw = numerator / denominator if denominator else 0.0
+
+    hint_penalty = 0.7 if hints_used else 1.0
+    final = round(raw * schema_penalty * hint_penalty, 4)
+    line_display = "n/a" if line_score is None else f"{line_score:.2f}"
+
+    return {
+        "reward": final,
+        "subscores": {
+            "category_match": round(cat_score, 4),
+            "explanation_quality": round(expl_score, 4),
+            "severity_match": round(sev_score, 4),
+            "line_accuracy": None if line_score is None else round(line_score, 4),
+            "exploitability": round(exploit_score, 4),
+        },
+        "info": {
+            "scenario_id": scenario["id"],
+            "canonical_category": scenario["canonical_category"],
+            "difficulty": scenario.get("difficulty", "unknown"),
+            "hints_used": hints_used,
+            "code_read": code_read,
+            "schema_penalty": schema_penalty,
+            "submitted_type": submission["vulnerability_type"],
+            "submitted_severity": submission["severity"],
+            "submitted_lines": submission["affected_lines"],
+            "ground_truth_lines": scenario.get("bug_lines", []),
+            "line_accuracy_scored": line_score is not None,
+        },
+        "content": (
+            f"Submitted: {submission['vulnerability_type']} "
+            f"(expected: {scenario['canonical_category']})\n"
+            f"Scores — cat: {cat_score:.2f}, expl: {expl_score:.2f}, "
+            f"sev: {sev_score:.2f}, lines: {line_display}, "
+            f"exploit: {exploit_score:.2f}\n"
+            f"Final reward: {final}"
+        ),
+    }
 
 
 def _score_exploitability(
@@ -619,4 +702,8 @@ def _score_exploitability(
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    if not _HUD_AVAILABLE:
+        raise SystemExit(
+            "hud-python is not installed; env.py only exposes scoring helpers in standalone mode."
+        )
     env.run(transport="stdio")
