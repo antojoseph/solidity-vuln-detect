@@ -84,14 +84,11 @@ def build_config(
     lora = config.get("lora", {})
     output = config.get("output", {})
 
-    if num_gpus < 2:
-        num_inference_gpus = 1
-        num_train_gpus = 1
-        colocate_all = True
-    else:
-        num_inference_gpus = max(1, num_gpus // 2)
-        num_train_gpus = max(1, num_gpus - num_inference_gpus)
-        colocate_all = False
+    # All GPUs shared between vLLM inference + FSDP trainer (colocated)
+    num_train_gpus = num_gpus
+    colocate_all = True
+
+    vllm_url = os.environ.get("VLLM_BASE_URL", "http://localhost:30002")
 
     return {
         "model_path": model_path,
@@ -99,13 +96,14 @@ def build_config(
         "output_dir": output_dir,
         "env_id": env_id,
         "num_gpus": num_gpus,
-        "num_inference_gpus": num_inference_gpus,
         "num_train_gpus": num_train_gpus,
+        "vllm_url": vllm_url,
         "colocate_all": colocate_all,
         "epochs": int(online_rl.get("epochs", 1)),
         "batch_size": int(online_rl.get("batch_size", 1)),
         "gradient_accumulation_steps": int(online_rl.get("gradient_accumulation_steps", 1)),
         "learning_rate": float(online_rl.get("learning_rate", 5e-6)),
+        "warmup_ratio": float(online_rl.get("warmup_ratio", 0.1)),
         "max_tool_calling_iterations": int(online_rl.get("max_tool_calling_iterations", 10)),
         "max_completion_length": int(online_rl.get("max_completion_length", 4096)),
         "max_prompt_length": int(online_rl.get("max_prompt_length", 8192)),
@@ -144,17 +142,21 @@ def build_skyrl_overrides(resolved: dict) -> list[str]:
         f"trainer.update_epochs_per_batch={resolved['gradient_accumulation_steps']}",
         f"trainer.max_prompt_length={resolved['max_prompt_length']}",
         f"trainer.policy.optimizer_config.lr={resolved['learning_rate']}",
+        # warmup: 10% of total steps
+        f"trainer.policy.optimizer_config.num_warmup_steps={max(1, int(3834 * resolved['warmup_ratio']))}",
         f"trainer.algorithm.advantage_estimator={resolved['advantage_estimator']}",
         f"trainer.algorithm.use_kl_loss={'true' if resolved['beta'] > 0 else 'false'}",
         f"trainer.algorithm.use_kl_in_reward={'true' if resolved['beta'] > 0 else 'false'}",
-        f"generator.inference_engine.num_engines={resolved['num_inference_gpus']}",
+        # External vLLM server (separate container — no version conflicts)
+        # Local vLLM engines managed by SkyRL (needed for log-probs + weight sync)
+        f"generator.inference_engine.num_engines={resolved['num_train_gpus']}",
         "generator.inference_engine.tensor_parallel_size=1",
         "generator.inference_engine.backend=vllm",
         "generator.inference_engine.run_engines_locally=true",
         "generator.inference_engine.weight_sync_backend=nccl",
         "generator.inference_engine.async_engine=true",
         "generator.inference_engine.gpu_memory_utilization=0.85",
-        "generator.batched=true",
+        "generator.batched=false",
         f"generator.max_turns={resolved['max_tool_calling_iterations']}",
         f"generator.n_samples_per_prompt={resolved['num_generations']}",
         f"generator.sampling_params.max_generate_length={resolved['max_completion_length']}",
@@ -168,23 +170,25 @@ def build_skyrl_overrides(resolved: dict) -> list[str]:
         "trainer.eval_before_train=false",
         "trainer.logger=wandb",
         "trainer.project_name=solidity-vuln-detect",
-        f"trainer.default_hdfs_dir={resolved['output_dir']}",
+        f"trainer.run_name=qwen3-8b-instruct-rl",
     ]
 
 
 def launch_training(resolved: dict) -> None:
-    from skyrl_gym.envs import register
-    from skyrl_env import SolidityVulnEnv
+    from skyrl_gym.envs.registration import registry
+    from skyrl_env import SolidityVulnEnv  # noqa: F401 — triggers auto-register
 
-    register(
-        id=resolved["env_id"],
-        entry_point=SolidityVulnEnv,
-        kwargs={
-            "max_turns": resolved["max_tool_calling_iterations"],
-            "strip_think": resolved["strip_think"],
-        },
-    )
-    logger.info("Registered %s env with SkyRL", resolved["env_id"])
+    if resolved["env_id"] not in {s.id for s in registry.values()}:
+        from skyrl_gym.envs import register
+        register(
+            id=resolved["env_id"],
+            entry_point=SolidityVulnEnv,
+            kwargs={
+                "max_turns": resolved["max_tool_calling_iterations"],
+                "strip_think": resolved["strip_think"],
+            },
+        )
+    logger.info("Env %s ready in SkyRL registry", resolved["env_id"])
 
     overrides = build_skyrl_overrides(resolved)
     argv = ["skyrl.train.entrypoints.main_base", *overrides]
@@ -218,10 +222,9 @@ def main():
         num_gpus=args.num_gpus,
     )
     logger.info(
-        "Launching SkyRL RLOO with %d GPUs (%d inference + %d train)",
-        resolved["num_gpus"],
-        resolved["num_inference_gpus"],
+        "Launching SkyRL RLOO with %d trainer GPUs, external vLLM at %s",
         resolved["num_train_gpus"],
+        resolved["vllm_url"],
     )
     launch_training(resolved)
 

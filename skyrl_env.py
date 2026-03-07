@@ -24,7 +24,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from audit_core import (
+from run_eval_standalone import (
     Episode,
     TOOL_DEFINITIONS_OPENAI,
     build_system_prompt,
@@ -50,6 +50,26 @@ def _get_base_class():
 
 
 _Base = _get_base_class()
+
+
+def _auto_register():
+    """Auto-register SolidityVulnEnv with skyrl_gym on import.
+
+    This ensures the env is available in Ray worker processes that import
+    this module via PYTHONPATH, not just the launcher process.
+    """
+    try:
+        from skyrl_gym.envs import register as _register
+        _register(
+            id="solidity-vuln",
+            entry_point="skyrl_env:SolidityVulnEnv",
+        )
+        logger.info("Auto-registered solidity-vuln env with skyrl_gym")
+    except Exception:
+        pass  # Will be registered explicitly by launcher if auto-register fails
+
+
+_auto_register()
 
 # ---------------------------------------------------------------------------
 # Scenario data (loaded once per worker)
@@ -157,6 +177,7 @@ class SolidityVulnEnv(_Base):
         # Track agent state for compatibility with SkyRL expectations
         self._tool_calls_history: list[dict] = []
         self._tool_outputs: list[str] = []
+        self._read_code_called = False
 
         # Tool schemas for SkyRL (it uses these for prompt injection)
         self.tools = TOOL_DEFINITIONS_OPENAI
@@ -271,6 +292,9 @@ class SolidityVulnEnv(_Base):
             self._tool_calls_history.append(tc)
             self._tool_outputs.append(result_text)
 
+            if name == "read_code":
+                self._read_code_called = True
+
             obs = (
                 f'<tool_response>\n'
                 f'{{"name": "{name}", "result": {json.dumps(result_text)}}}\n'
@@ -327,9 +351,26 @@ class SolidityVulnEnv(_Base):
             return 0.0
 
         result = self._episode.evaluate()
-        self._final_reward = result["reward"]
+        reward = result["reward"]
+        # Penalize blind submissions — model should read code before submitting
+        if not self._read_code_called and reward > 0:
+            reward *= 0.5
+        self._final_reward = reward
         self._eval_result = result
         return self._final_reward
+
+    def get_metrics(self) -> dict[str, Any]:
+        """Return per-episode metrics for W&B logging."""
+        metrics = {
+            "turns": self.turns,
+            "read_code_called": int(self._read_code_called),
+            "tool_call_count": len(self._tool_calls_history),
+        }
+        if self._eval_result is not None:
+            subscores = self._eval_result.get("subscores", {})
+            for k, v in subscores.items():
+                metrics[f"subscore/{k}"] = v
+        return metrics
 
     def _build_metadata(self) -> dict:
         """Build metadata dict for the terminal step."""
