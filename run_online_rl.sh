@@ -14,8 +14,20 @@
 
 set -e
 
-MODEL="Qwen/Qwen3-8B"
-RL_OUTPUT="/home/ubuntu/outputs/rl-train-8b"
+# Load WANDB_API_KEY (not auto-sourced in non-interactive SSH + sg docker)
+if [ -z "$WANDB_API_KEY" ]; then
+  export WANDB_API_KEY=$(grep -oP 'WANDB_API_KEY=\K.*' "$HOME/.bashrc" 2>/dev/null || true)
+fi
+
+# Use SFT-warmstarted model if available, otherwise base
+if [ -d "/home/ubuntu/outputs/sft-8b-merged" ]; then
+  MODEL="/workspace/outputs/sft-8b-merged"
+  echo "Using SFT-warmstarted model"
+else
+  MODEL="Qwen/Qwen3-8B"
+  echo "Using base Qwen3-8B (no SFT warmstart)"
+fi
+RL_OUTPUT="/home/ubuntu/outputs/rl-train-8b-v3"
 HUD_DIR="/home/ubuntu/hud"
 
 sudo mkdir -p "$RL_OUTPUT" && sudo chmod 777 "$RL_OUTPUT"
@@ -31,7 +43,7 @@ sg docker -c "docker run -d --name solidity-trainer \
   --gpus all --ipc=host --shm-size=64g --network host \
   -e PYTHONUNBUFFERED=1 \
   -e PYTHONPATH=/workspace/hud \
-  -e WANDB_API_KEY=\"${WANDB_API_KEY}\" \
+  -e WANDB_API_KEY=$(grep -oP 'WANDB_API_KEY=\K.*' ~/.bashrc) \
   -v $HUD_DIR:/workspace/hud \
   -v /home/ubuntu/outputs:/workspace/outputs \
   -v $HUD_DIR/data:/workspace/hud/data:ro \
@@ -41,7 +53,7 @@ sg docker -c "docker run -d --name solidity-trainer \
   python3 run_skyrl_train.py \
     --model $MODEL \
     --data /workspace/hud/data/skyrl_prompts.jsonl \
-    --output /workspace/outputs/rl-train-8b \
+    --output /workspace/outputs/rl-train-8b-v3 \
     --num-gpus 8"
 
 echo ""

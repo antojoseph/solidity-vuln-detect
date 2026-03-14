@@ -178,6 +178,7 @@ class SolidityVulnEnv(_Base):
         self._tool_calls_history: list[dict] = []
         self._tool_outputs: list[str] = []
         self._read_code_called = False
+        self._context_called = False
 
         # Tool schemas for SkyRL (it uses these for prompt injection)
         self.tools = TOOL_DEFINITIONS_OPENAI
@@ -219,6 +220,8 @@ class SolidityVulnEnv(_Base):
         self._eval_result = None
         self._tool_calls_history = []
         self._tool_outputs = []
+        self._read_code_called = False
+        self._context_called = False
 
         # Build auditor system prompt with tool schemas
         system_content = build_system_prompt(scenario["protocol_type"])
@@ -273,7 +276,7 @@ class SolidityVulnEnv(_Base):
             return {
                 "observations": [
                     "No tool call detected. Use read_code() to start, "
-                    "then submit_finding() when ready."
+                    "then submit_finding() or no_findings() when ready."
                 ],
                 "reward": 0.0,
                 "done": False,
@@ -288,12 +291,18 @@ class SolidityVulnEnv(_Base):
             name = tc["name"]
             args = tc["arguments"]
 
-            result_text = self._episode.call_tool(name, args)
+            # P1: Block list_hints during RL — prevents hint-crutch strategy
+            if name == "list_hints":
+                result_text = "Hints are disabled during training. Analyze the code directly."
+            else:
+                result_text = self._episode.call_tool(name, args)
             self._tool_calls_history.append(tc)
             self._tool_outputs.append(result_text)
 
             if name == "read_code":
                 self._read_code_called = True
+            if name == "get_context":
+                self._context_called = True
 
             obs = (
                 f'<tool_response>\n'
@@ -302,7 +311,7 @@ class SolidityVulnEnv(_Base):
             )
             observations.append(obs)
 
-            if name == "submit_finding":
+            if name in ("submit_finding", "no_findings"):
                 submitted = True
 
         done = submitted or self.turns >= self.max_turns
@@ -352,10 +361,20 @@ class SolidityVulnEnv(_Base):
 
         result = self._episode.evaluate()
         reward = result["reward"]
-        # Penalize blind submissions — model should read code before submitting
+
+        # P0: Penalize blind submissions — model should read code before submitting
         if not self._read_code_called and reward > 0:
             reward *= 0.5
-        self._final_reward = reward
+
+        # P2: Difficulty-weighted rewards — hard scenarios are worth more
+        difficulty = self._difficulty
+        if difficulty == "hard":
+            reward *= 1.3
+        elif difficulty == "easy":
+            reward *= 0.8
+        # medium is 1.0x (unchanged)
+
+        self._final_reward = round(min(1.0, reward), 4)
         self._eval_result = result
         return self._final_reward
 
@@ -364,7 +383,9 @@ class SolidityVulnEnv(_Base):
         metrics = {
             "turns": self.turns,
             "read_code_called": int(self._read_code_called),
+            "context_called": int(self._context_called),
             "tool_call_count": len(self._tool_calls_history),
+            "difficulty": {"easy": 0, "medium": 1, "hard": 2}.get(self._difficulty, 1),
         }
         if self._eval_result is not None:
             subscores = self._eval_result.get("subscores", {})
@@ -378,7 +399,7 @@ class SolidityVulnEnv(_Base):
             return {"scenario_id": self._scenario_id}
         return {
             "scenario_id": self._scenario_id,
-            "reward": self._eval_result["reward"],
+            "reward": self._final_reward,
             "subscores": self._eval_result.get("subscores", {}),
             "info": self._eval_result.get("info", {}),
             "tool_call_count": len(self._tool_calls_history),

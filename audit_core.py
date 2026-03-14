@@ -21,9 +21,9 @@ def build_system_prompt(protocol_type: str) -> str:
         "1. Use read_code() to examine the Solidity code snippet\n"
         "2. Optionally use get_context() for protocol details\n"
         "3. Optionally use list_hints() for detection guidance (reduces max reward)\n"
-        "4. Use submit_finding() with your analysis when ready\n\n"
+        "4. Use submit_finding() if you find a vulnerability, or no_findings() if the code is safe\n\n"
         "Your goal: identify the specific vulnerability type, explain the attack vector, "
-        "and pinpoint the affected lines of code."
+        "and pinpoint the affected lines of code. If the code is safe, explain why."
     )
 
 
@@ -59,7 +59,8 @@ TOOL_DEFINITIONS = [
     {
         "name": "submit_finding",
         "description": (
-            "Submit your vulnerability analysis.\n\n"
+            "Submit your vulnerability analysis. Only use this when you have "
+            "identified a real vulnerability. If the code is safe, use no_findings() instead.\n\n"
             "Args:\n"
             "    vulnerability_type: Category of vulnerability (e.g. 'reentrancy', "
             "'oracle-manipulation', 'access-control', 'flash-loan', "
@@ -67,11 +68,10 @@ TOOL_DEFINITIONS = [
             "'integer-overflow', 'input-validation', 'reward-accounting', "
             "'slippage-protection', 'initialization', 'locked-funds', "
             "'governance', 'liquidation', 'stale-state', 'signature-replay', "
-            "'incorrect-math', 'no-vulnerability', etc.)\n"
+            "'incorrect-math', etc.)\n"
             "    explanation: Detailed explanation of WHY the code is vulnerable, "
             "including what an attacker could exploit and how.\n"
-            "    severity: Impact level — 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', "
-            "or 'NONE' for safe code.\n"
+            "    severity: Impact level — 'CRITICAL', 'HIGH', 'MEDIUM', or 'LOW'.\n"
             "    affected_lines: Comma-separated line numbers where the root cause is "
             "(e.g. '5,6,7'). Use the line numbers from read_code().\n"
             "    attack_path: Step-by-step outline of how the exploit is executed.\n"
@@ -91,7 +91,7 @@ TOOL_DEFINITIONS = [
                 },
                 "severity": {
                     "type": "string",
-                    "description": "Impact level: CRITICAL, HIGH, MEDIUM, LOW, or NONE",
+                    "description": "Impact level: CRITICAL, HIGH, MEDIUM, or LOW",
                     "default": "HIGH",
                 },
                 "affected_lines": {
@@ -116,6 +116,28 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": ["vulnerability_type", "explanation"],
+        },
+    },
+    {
+        "name": "no_findings",
+        "description": (
+            "Declare that the code is safe and has no vulnerability. "
+            "Use this when you have thoroughly reviewed the code and determined "
+            "it contains no security issues. You must still explain why the code "
+            "is safe — what patterns you checked and why they are correctly implemented."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "explanation": {
+                    "type": "string",
+                    "description": (
+                        "Explanation of why the code is safe — what security patterns "
+                        "you checked and why they are correctly implemented"
+                    ),
+                },
+            },
+            "required": ["explanation"],
         },
     },
 ]
@@ -221,6 +243,18 @@ class Episode:
         }
         return f"Finding submitted: {vulnerability_type} ({severity}). Awaiting evaluation."
 
+    def no_findings(self, explanation: str) -> str:
+        self.submission = {
+            "vulnerability_type": "no-vulnerability",
+            "explanation": explanation,
+            "severity": "NONE",
+            "affected_lines": [],
+            "attack_path": "",
+            "prerequisites": "",
+            "impact": "",
+        }
+        return "No-vulnerability finding submitted. Awaiting evaluation."
+
     def call_tool(self, name: str, args: dict) -> str:
         if name == "read_code":
             return self.read_code()
@@ -229,7 +263,11 @@ class Episode:
         if name == "list_hints":
             return self.list_hints()
         if name == "submit_finding":
-            return self.submit_finding(**args)
+            valid = {"vulnerability_type", "explanation", "severity",
+                     "affected_lines", "attack_path", "prerequisites", "impact"}
+            return self.submit_finding(**{k: v for k, v in args.items() if k in valid})
+        if name == "no_findings":
+            return self.no_findings(explanation=args.get("explanation", ""))
         return f"Unknown tool: {name}"
 
     def evaluate(self) -> dict:

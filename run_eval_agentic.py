@@ -232,7 +232,8 @@ AGENTIC_TOOL_DEFINITIONS_OPENAI = [
         "function": {
             "name": "submit_finding",
             "description": (
-                "Submit your vulnerability analysis.\n\n"
+                "Submit your vulnerability analysis. Only use this when you have "
+                "identified a real vulnerability. If the code is safe, use no_findings() instead.\n\n"
                 "Args:\n"
                 "    vulnerability_type: Category of vulnerability (e.g. 'reentrancy', "
                 "'oracle-manipulation', 'access-control', 'flash-loan', "
@@ -240,11 +241,10 @@ AGENTIC_TOOL_DEFINITIONS_OPENAI = [
                 "'integer-overflow', 'input-validation', 'reward-accounting', "
                 "'slippage-protection', 'initialization', 'locked-funds', "
                 "'governance', 'liquidation', 'stale-state', 'signature-replay', "
-                "'incorrect-math', 'no-vulnerability', etc.)\n"
+                "'incorrect-math', etc.)\n"
                 "    explanation: Detailed explanation of WHY the code is vulnerable, "
                 "including what an attacker could exploit and how.\n"
-                "    severity: Impact level — 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', "
-                "or 'NONE' for safe code.\n"
+                "    severity: Impact level — 'CRITICAL', 'HIGH', 'MEDIUM', or 'LOW'.\n"
                 "    affected_lines: Comma-separated line numbers where the root cause is "
                 "(e.g. '5,6,7'). Use the line numbers from read_file().\n"
                 "    attack_path: Step-by-step outline of how the exploit is executed.\n"
@@ -264,7 +264,7 @@ AGENTIC_TOOL_DEFINITIONS_OPENAI = [
                     },
                     "severity": {
                         "type": "string",
-                        "description": "Impact level: CRITICAL, HIGH, MEDIUM, LOW, or NONE",
+                        "description": "Impact level: CRITICAL, HIGH, MEDIUM, or LOW",
                         "default": "HIGH",
                     },
                     "affected_lines": {
@@ -289,6 +289,30 @@ AGENTIC_TOOL_DEFINITIONS_OPENAI = [
                     },
                 },
                 "required": ["vulnerability_type", "explanation"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "no_findings",
+            "description": (
+                "Declare that the code is safe and has no vulnerability. "
+                "Use this when you have thoroughly reviewed the code and determined "
+                "it contains no security issues."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "explanation": {
+                        "type": "string",
+                        "description": (
+                            "Explanation of why the code is safe — what security patterns "
+                            "you checked and why they are correctly implemented"
+                        ),
+                    },
+                },
+                "required": ["explanation"],
             },
         },
     },
@@ -318,7 +342,8 @@ SNIPPET_TOOL_DEFINITIONS_OPENAI = [
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
-    AGENTIC_TOOL_DEFINITIONS_OPENAI[-1],  # submit_finding (same)
+    AGENTIC_TOOL_DEFINITIONS_OPENAI[-2],  # submit_finding
+    AGENTIC_TOOL_DEFINITIONS_OPENAI[-1],  # no_findings
 ]
 
 # Exclude dirs for file operations
@@ -501,6 +526,19 @@ class AgenticEpisode:
         }
         return f"Finding submitted: {vulnerability_type} ({severity}). Awaiting evaluation."
 
+    def no_findings(self, explanation: str) -> str:
+        self.tool_call_count += 1
+        self.submission = {
+            "vulnerability_type": "no-vulnerability",
+            "explanation": explanation,
+            "severity": "NONE",
+            "affected_lines": [],
+            "attack_path": "",
+            "prerequisites": "",
+            "impact": "",
+        }
+        return "No-vulnerability finding submitted. Awaiting evaluation."
+
     def call_tool(self, name: str, args: dict) -> str:
         if name == "list_files":
             return self.list_files(args.get("directory", ""))
@@ -511,7 +549,11 @@ class AgenticEpisode:
         elif name == "get_project_info":
             return self.get_project_info()
         elif name == "submit_finding":
-            return self.submit_finding(**args)
+            valid = {"vulnerability_type", "explanation", "severity",
+                     "affected_lines", "attack_path", "prerequisites", "impact"}
+            return self.submit_finding(**{k: v for k, v in args.items() if k in valid})
+        elif name == "no_findings":
+            return self.no_findings(explanation=args.get("explanation", ""))
         else:
             return f"Unknown tool: {name}"
 
@@ -565,6 +607,18 @@ class SnippetEpisode:
         }
         return f"Finding submitted: {self.submission['vulnerability_type']} ({self.submission['severity']}). Awaiting evaluation."
 
+    def no_findings(self, explanation: str) -> str:
+        self.submission = {
+            "vulnerability_type": "no-vulnerability",
+            "explanation": explanation,
+            "severity": "NONE",
+            "affected_lines": [],
+            "attack_path": "",
+            "prerequisites": "",
+            "impact": "",
+        }
+        return "No-vulnerability finding submitted. Awaiting evaluation."
+
     def call_tool(self, name: str, args: dict) -> str:
         if name == "read_code":
             return self.read_code()
@@ -572,6 +626,8 @@ class SnippetEpisode:
             return self.get_context()
         elif name == "submit_finding":
             return self.submit_finding(**args)
+        elif name == "no_findings":
+            return self.no_findings(explanation=args.get("explanation", ""))
         return f"Unknown tool: {name}"
 
     def evaluate(self) -> dict:
@@ -625,7 +681,7 @@ async def run_agentic_episode(
         f"- Be specific about the vulnerability type (e.g., 'reentrancy', 'oracle-manipulation', "
         f"'access-control', not generic 'security issue')\n"
         f"- Explain the attack vector step by step\n"
-        f"- You MUST call submit_finding() when you are ready"
+        f"- You MUST call submit_finding() or no_findings() when you are ready"
     )
 
     messages = [
@@ -688,13 +744,13 @@ async def run_agentic_episode(
                         "content": result_text,
                     }
                     # Add step urgency for late steps
-                    if steps >= max_steps - 3 and tc.function.name != "submit_finding":
+                    if steps >= max_steps - 3 and tc.function.name not in ("submit_finding", "no_findings"):
                         tool_msg["content"] += (
                             f"\n\n[Step {steps}/{max_steps}] Running low on steps. "
-                            f"Submit your finding soon using submit_finding()."
+                            f"Submit your finding using submit_finding() or no_findings()."
                         )
                     messages.append(tool_msg)
-                    if tc.function.name == "submit_finding":
+                    if tc.function.name in ("submit_finding", "no_findings"):
                         submitted = True
 
                 if submitted:
@@ -716,10 +772,8 @@ async def run_agentic_episode(
                         "role": "user",
                         "content": (
                             f"[Step {steps}/{max_steps}] You wrote an analysis but "
-                            f"didn't call a tool. Please call submit_finding() now "
-                            f"with your vulnerability assessment. Include: "
-                            f"vulnerability_type, explanation, severity, affected_lines, "
-                            f"attack_path, prerequisites, and impact."
+                            f"didn't call a tool. Please call submit_finding() with your "
+                            f"vulnerability assessment, or no_findings() if the code is safe."
                         ),
                     })
                     continue  # Give it another chance
@@ -732,7 +786,7 @@ async def run_agentic_episode(
                 tool_results.append(
                     f'{{"name": "{tc["name"]}", "content": {json.dumps(result_text)}}}'
                 )
-                if tc["name"] == "submit_finding":
+                if tc["name"] in ("submit_finding", "no_findings"):
                     submitted = True
 
             # Add step counter to tool responses for urgency
@@ -743,7 +797,7 @@ async def run_agentic_episode(
             if steps >= max_steps - 3 and not submitted:
                 results_text += (
                     f"\n\n{step_prefix}You are running low on steps. "
-                    f"Submit your finding soon using submit_finding()."
+                    f"Submit using submit_finding() or no_findings()."
                 )
             messages.append({"role": "user", "content": results_text})
 
@@ -806,9 +860,9 @@ async def run_snippet_episode(
         f"Instructions:\n"
         f"1. Use read_code() to examine the Solidity code snippet\n"
         f"2. Optionally use get_context() for protocol details\n"
-        f"3. Use submit_finding() with your analysis when ready\n\n"
+        f"3. Use submit_finding() if you find a vulnerability, or no_findings() if the code is safe\n\n"
         f"Your goal: identify the specific vulnerability type, explain the attack vector, "
-        f"and pinpoint the affected lines of code."
+        f"and pinpoint the affected lines of code. If the code is safe, explain why."
     )
 
     messages = [
@@ -866,7 +920,7 @@ async def run_snippet_episode(
                         "tool_call_id": tc.id,
                         "content": result_text,
                     })
-                    if tc.function.name == "submit_finding":
+                    if tc.function.name in ("submit_finding", "no_findings"):
                         submitted = True
 
                 if submitted:
@@ -886,7 +940,7 @@ async def run_snippet_episode(
                 tool_results.append(
                     f'{{"name": "{tc["name"]}", "content": {json.dumps(result_text)}}}'
                 )
-                if tc["name"] == "submit_finding":
+                if tc["name"] in ("submit_finding", "no_findings"):
                     submitted = True
 
             results_text = "\n".join(

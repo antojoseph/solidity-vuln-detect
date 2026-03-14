@@ -264,7 +264,7 @@ if _HUD_AVAILABLE:
         prerequisites: str = "",
         impact: str = "",
     ) -> str:
-        """Submit your vulnerability analysis."""
+        """Submit your vulnerability analysis. If the code is safe, use no_findings() instead."""
         _current["_submission"] = {
             "vulnerability_type": vulnerability_type,
             "explanation": explanation,
@@ -275,6 +275,20 @@ if _HUD_AVAILABLE:
             "impact": impact,
         }
         return f"Finding submitted: {vulnerability_type} ({severity}). Awaiting evaluation."
+
+    @env.tool()
+    def no_findings(explanation: str) -> str:
+        """Declare that the code is safe and has no vulnerability."""
+        _current["_submission"] = {
+            "vulnerability_type": "no-vulnerability",
+            "explanation": explanation,
+            "severity": "NONE",
+            "affected_lines": [],
+            "attack_path": "",
+            "prerequisites": "",
+            "impact": "",
+        }
+        return "No-vulnerability finding submitted. Awaiting evaluation."
 
     @env.scenario("detect-vuln")
     async def detect_vulnerability(scenario_id: str = "") -> Any:
